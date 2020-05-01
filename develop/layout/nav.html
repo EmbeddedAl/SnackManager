@@ -1,0 +1,30 @@
+<div id="nav">
+   <ul>
+      <?php
+         /* check user to be logged in */
+         if (isset($_SESSION["username"]))
+         {
+            ?>
+
+            <?php echo "Logged in as: " . $_SESSION["username"] . "</br>"; ?>
+            <li><a href="myaccount.php">My account</a></li>
+            <li><a href="logout.php">Logout</a></li>
+
+            <?php
+            if (isset($_SESSION["isadmin"]))
+            {
+               echo "[Administrative area]";
+               ?><li><a href="register.php">Register new user</a></li><?php
+            }
+         }
+
+         else
+         {
+         ?>
+            Not logged in...
+            <li><a href="index.php">Login</a></li>
+         <?php
+         }
+      ?>
+   </ul>
+</div>

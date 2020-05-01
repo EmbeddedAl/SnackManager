@@ -1,0 +1,27 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+    "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+    <head>
+        <?php include ("../layout/title.html"); ?>
+        <link rel="stylesheet" href="../layout/style.css">
+    </head>
+    <body>
+        <div id="page">
+            <div id="content">
+                <h1> Installation of SnackManager </h1>
+                <p> After SnackManager was installed, all files in the folder 'install' should be deleted from the server</p>
+                <a href="phpinfo.php"> Show PhpInfo </a>
+
+                <form action = "install.php" method = "post">
+                    <p> <input type = "submit" name="installDatabase" value="Install/test database"/> </p>
+                    <p> <input type = "submit" name="insertUsers" value="Insert demo users to database"/> </p>
+                    <p> <input type = "submit" name="dropAll" value="Drop all tables from database"/> </p>
+                </form>
+            </div>
+
+
+            <?php include ("../layout/footer.html"); ?>
+        </div>
+
+    </body>
+</html>

@@ -1,0 +1,140 @@
+/* Body type definition */
+body
+{
+   color: black;
+   background: black;
+   font-size: 100.0%;
+   font-family: Helvetica, Arial, sans-serif;
+   margin: 0;
+   padding: 1em 0;
+   text-align: center;
+}
+
+div#table
+{
+   text-align: left;
+   width: 150px;
+   word-wrap: break-word;
+}
+
+/* Division type definitions */
+/* picBackground.png originally published as snow1.png on
+ * on OpenGameArt.org under Creative Commons License CC0
+ * Downloaded: https://opengameart.org/node/8029 on 2019-10-11
+ */
+div#page
+{
+   text-align: left;
+   margin: 0 auto;
+   width: 760px;
+   padding: 0;
+   background: #ffffe0 url(picBackground.png);
+   border: 2px ridge black;
+}
+
+/* picTitle.svg/picTitle.png originally published as "Sausage on a plate" on
+ * on publicdomainvectors.org under Creative Commons License CC0
+ * Downloaded: https://publicdomainvectors.org/en/free-clipart/Sausage-on-a-plate/45526.html on 2020-04-27
+ */
+div#header
+{
+   font-size: 1em;
+   margin: 0;
+   padding: 0.3em;
+   text-align: left;
+   background: #cd0026 url(picTitle.gif) no-repeat 100% 100%;
+   height: 225px;
+   border: 2px ridge black;
+}
+
+div#header h1
+{
+   font-size: 2.5em;
+   margin-bottom: 0em;
+}
+div#header h2
+{
+   font-size: 2.0em;
+   margin-top: 0em;
+}
+
+div#footer
+{
+   clear: both;
+   font-size: 0.83em;
+   margin: 0;
+   padding: 0.1em;
+   text-align: center;
+   background-color: #cd0026;
+   border: 2px ridge black;
+   font-size: 1em;
+}
+
+/* Navigation type definitions */
+div#nav
+{
+   font-size: 0.83em;
+   width: 200px;
+   height: 100%;
+   float: left;
+   background-color: #E6DDC5;
+   border: 2px ridge black;
+   margin: 0 0 0 0;
+}
+
+ul#ulnav li
+{
+   list-style: none;
+   margin: 0;
+   padding: 0.5em;
+}
+
+ul#ulnav a
+{
+   display: block;
+   padding: 0.2em;
+   font-weight: bold;
+}
+
+ul#ulnav a:link
+{
+   color: black; background-color: white;
+}
+
+ul#ulnav a:visited
+{
+   color: #666; background-color: white;
+}
+
+ul#ulnav a:hover
+{
+   color: black; background-color: #eee;
+}
+
+ul#ulnav a:active
+{
+   color: white; background-color: gray;
+}
+
+/* content type definitions */
+div#content
+{
+   margin: 0 0 1em 220px;
+   padding: 0 1em;
+   clear: right;
+}
+
+div#content h2
+{
+   font-size: 1.2em;
+   margin: 0.2em 0;
+   color: black;
+   font-weight: normal;
+   text-decoration:underline;
+}
+
+div#content p
+{
+   font-size: 1em;
+   margin: 1em 0;
+}
