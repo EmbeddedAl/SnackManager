@@ -2,7 +2,7 @@
 <body>
 <?php
     include "../config.php";
-    include "dbActions.php";
+    include "../sharedphp/dbActions.php";
 
     echo "<h1> Intallation </h1>";
     echo "<h2> Your config file settings: </h2>";

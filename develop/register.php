@@ -1,23 +1,23 @@
 <?php session_start(); ?>
 
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
-       "http://www.w3.org/TR/html4/strict.dtd">
 <?php
     include 'config.php';
     include 'sharedphp/sharedInputCheck.php';
+    include "sharedphp/sharedHelpers.php";
     include "sharedphp/sharedSqlWrapper.php";
+
 
     /* require user to be logged in */
     if (!isset($_SESSION["userid"]))
     {
-        echo "<meta http-equiv=\"refresh\" content=\"0; url=index.php\">";
+        writeErrorPage("Access denied. You must log in first!");
         return;
     }
 
     /* require user to be admin */
     if (!isset($_SESSION["isadmin"]))
     {
-        echo "<meta http-equiv=\"refresh\" content=\"0; url=index.php\">";
+        writeErrorPage("Access denied. Admin rights required.");
         return;
     }
 	
@@ -90,19 +90,22 @@
 		   $FormCityValid == "" &&
 		   $FormPasswordValid == "")
 	   {
-			$RegistrationCompleted = TRUE;
 
 			if (shareSqlWrapper_userCreate($FormUserName, $FormFirstName, $FormLastName, $FormEmail, $FormCity, md5($FormPassword)) < 0)
 			{
-				echo "Error inserting user into table <br>";
+                writeErrorPage("Error creating user record", "register.php");
+                return;
 			}
+            
+			$RegistrationCompleted = TRUE;
 
-			/* clear the post */
+			// clear the post
 			$_POST = array();
 
-			/* destroy and clear session */
-			session_destroy();
-			$_SESSION = array();
+			// destroy and clear session
+            // TODO wh: why?
+			//session_destroy();
+			//$_SESSION = array();
 	   }
    }
    else
@@ -117,6 +120,8 @@
    }
 ?>
 
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+       "http://www.w3.org/TR/html4/strict.dtd">
 <html>
     <head>
         <?php include ("layout/title.html"); ?>

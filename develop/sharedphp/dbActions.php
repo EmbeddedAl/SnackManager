@@ -25,6 +25,11 @@ Einkauf: Wieviel wir insgesamt eingekauft haben (wir haben Geld hergegeben, also
 Unser verfügbares Vermögen ist also Kasse + Summe(User)
 */
 
+if ($__dbActionsIncluded__ == TRUE)
+    return;
+
+$__dbActionsIncluded__ = TRUE;
+
 class dbException extends Exception
 {
     public function __construct($message)
@@ -34,11 +39,25 @@ class dbException extends Exception
 }
 
 
-function dbInit($db)
+function dbInit($db=NULL)
 {
     global $cash_id;
     global $procurement_id;
     global $sales_id;
+
+
+    if ($db == NULL)
+    {
+        // config is needed for connection to db
+        include 'config.php';
+
+        // open sql connection
+        $db = new mysqli ( $dbhost, $dbuser, $dbpass, $dbase );
+        if ($db->connect_error)
+        {
+            throw new dbException("Error connecting the database: " . $db->error);
+        }
+    }
 
     if ($result = $db->query("SELECT * from management LIMIT 1"))
     {
@@ -52,6 +71,13 @@ function dbInit($db)
     {
         throw new dbException("Cannot read management table: " . $db->error);
     }
+    return $db;
+}
+
+function dbClose($db)
+{
+    if ($db != NULL)
+        $db->close();
 }
 
 function dbDropTable($db, $table_name)
@@ -146,6 +172,18 @@ function dbAddUser($db, $username, $password, $lastname="", $firstname="", $mail
 }
 
 
+function dbGetUserId($db, $username)
+{
+    if ($result = $db->query("SELECT userid FROM users WHERE username = '$username'")) {
+        $row = $result->fetch_row();
+        $id = $row[0];
+        $result->free();
+        return $id;
+    }
+
+    throw new dbException("Cannot find username '$username'");
+}
+
 function dbGetAccountIdForUser($db, $user_id)
 {
     if ($result = $db->query("SELECT account_id FROM users WHERE userid = $user_id")) {
@@ -154,7 +192,7 @@ function dbGetAccountIdForUser($db, $user_id)
         $result->free();
         return $account_id;
     }
-    throw new dbException("Cannot find user");
+    throw new dbException("Cannot find user id '$user_id'");
 }
 
 
@@ -201,6 +239,5 @@ function dbTransferMoney($db, $source, $target, $executor, $amount, $comment)
     }
     return;
 }
-
-
 ?>
+
