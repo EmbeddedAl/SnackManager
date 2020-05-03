@@ -1,5 +1,30 @@
 <?php
 
+/*
+Buchhalterung:
+Wir haben Kasse (cash), Einkauf (procurement), Verkauf (sales) und User.
+Die Summe ist immer null.
+
+Einzahlung einer Summe eines Users:
+    Kasse += Summe: Wir haben mehr Bares
+    User -= Summe; Wir haben mehr Schulden beim User
+
+Einkauf über Summe gegen Bargeld:
+    Einkauf += Summe: Der Händler hat mehr Schulden bei uns (und gleicht sie in Naturalien aus)
+    Kasse -= Summe: Bezahlen müssen wir trotzdem
+
+Abrechnung einer Bestellung über Summe von User:
+    User += Summe: Wir haben weniger Schulden beim User
+    Verkauf -= Summe: Dafür mehr Schulden beim Mülleimer, wir zahlen mit Naturalien
+
+Am Ende sagt:
+Kasse: wieviel Bares wir haben sollten
+User: unser Vermögen beim User, d.h. solange der User Guthaben bei uns hat ist der Wert negativ
+Verkauf: Wieviel wir insgesamt verkauft haben (Wir haben Geld bekommen, also negativ)
+Einkauf: Wieviel wir insgesamt eingekauft haben (wir haben Geld hergegeben, also positiv)
+Unser verfügbares Vermögen ist also Kasse + Summe(User)
+*/
+
 class dbException extends Exception
 {
     public function __construct($message)
@@ -8,6 +33,26 @@ class dbException extends Exception
     }
 }
 
+
+function dbInit($db)
+{
+    global $cash_id;
+    global $procurement_id;
+    global $sales_id;
+
+    if ($result = $db->query("SELECT * from management LIMIT 1"))
+    {
+        $record = $result->fetch_assoc();
+
+        $cash_id = $record["cash_id"];
+        $procurement_id = $record["procurement_id"];
+        $sales_id = $record["sales_id"];
+    }
+    else
+    {
+        throw new dbException("Cannot read management table: " . $db->error);
+    }
+}
 
 function dbDropTable($db, $table_name)
 {
@@ -24,7 +69,8 @@ function dbDropTable($db, $table_name)
 
 function dbGetAutocommit($db)
 {
-    if ($result = $db->query("SELECT @@autocommit")) {
+    if ($result = $db->query("SELECT @@autocommit"))
+    {
         $row = $result->fetch_row();
         $auto = $row[0];
         $result->free();
@@ -60,7 +106,7 @@ function dbValidateAccountId($db, $account_id)
 }
 
 
-function dbAddUser($db, $username, $lastname, $firstname, $mail, $city, $password, $isAdmin, $max_credit)
+function dbAddUser($db, $username, $password, $lastname="", $firstname="", $mail="", $city="", $isAdmin=0, $max_credit=0)
 {
     $auto = dbGetAutocommit($db);
 
@@ -70,20 +116,20 @@ function dbAddUser($db, $username, $lastname, $firstname, $mail, $city, $passwor
 
         if ($db->query("INSERT INTO accounts (id, balance) VALUES (NULL, 0)") != TRUE)
         {
-            throw new dbException("Creating of account failed at dbAddUser: " . $sqlConnection->error);
+            throw new dbException("Creating of account failed at dbAddUser: " . $db->error);
         }
         $account_id = $db->insert_id;
 
         if ($db->query( "INSERT INTO users (lastname, firstname, username, email, city, password, isadmin, account_id, max_credit) ".
-                        "VALUES ('$lastname', '$firstname', '$username', '$mail', '$city', md5('$password'), $isAdmin, $account_id, $max_credit)") != TRUE)
+                        "VALUES ('$lastname', '$firstname', '$username', '$mail', '$city', '$password', $isAdmin, $account_id, $max_credit)") != TRUE)
         {
-            throw new dbException("Creating of user failed at dbAddUser: " . $sqlConnection->error);
+            throw new dbException("Creating of user failed at dbAddUser: " . $db->error);
         }
         $user_id = $db->insert_id;
 
         if ($db->commit() != TRUE)
         {
-            throw new dbException("COMMIT failed at dbAddUser: " . $sqlConnection->error);
+            throw new dbException("COMMIT failed at dbAddUser: " . $db->error);
         }
     }
     catch (dbException $e)
