@@ -43,6 +43,7 @@
     }
 
     $x = sharedSqlWrapper_readOpenOrderEntries($user_id);
+
     if ($x == NULL)
     {
         echo "<h2>Error reading the database</h2>";
@@ -78,7 +79,6 @@
     echo "  </form>";
 
 ?>
-
             </div><!-- content -->
             <?php include ("layout/footer.html"); ?>
         </div><!-- page -->
