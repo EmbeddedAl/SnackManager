@@ -25,11 +25,6 @@ Einkauf: Wieviel wir insgesamt eingekauft haben (wir haben Geld hergegeben, also
 Unser verfügbares Vermögen ist also Kasse + Summe(User)
 */
 
-if ($__dbActionsIncluded__ == TRUE)
-    return;
-
-$__dbActionsIncluded__ = TRUE;
-
 class dbException extends Exception
 {
     public function __construct($message)
@@ -41,15 +36,15 @@ class dbException extends Exception
 
 function dbInit($db=NULL)
 {
-    global $cash_id;
-    global $procurement_id;
-    global $sales_id;
-
-
     if ($db == NULL)
     {
         // config is needed for connection to db
-        include 'config.php';
+        global $dbhost;
+        global $dbuser;
+        global $dbpass;
+        global $dbase;
+        
+        include_once 'config.php';
 
         // open sql connection
         $db = new mysqli ( $dbhost, $dbuser, $dbpass, $dbase );
@@ -63,9 +58,9 @@ function dbInit($db=NULL)
     {
         $record = $result->fetch_assoc();
 
-        $cash_id = $record["cash_id"];
-        $procurement_id = $record["procurement_id"];
-        $sales_id = $record["sales_id"];
+        $GLOBALS['cash_id'] = $record["cash_id"];
+        $GLOBALS['procurement_id'] = $record["procurement_id"];
+        $GLOBALS['sales_id'] = $record["sales_id"];
     }
     else
     {
@@ -84,7 +79,7 @@ function dbDropTable($db, $table_name)
 {
     if ($db->query("DROP TABLE IF EXISTS $table_name" ) != TRUE)
     {
-        echo "Error dropping table '$table_name': " . $sqlConnection->error . "<br>";
+        echo "Error dropping table '$table_name': " . $db->error . "<br>";
     }
     else
     {
@@ -196,17 +191,21 @@ function dbGetAccountIdForUser($db, $user_id)
 }
 
 
-function dbTransferMoney($db, $source, $target, $executor, $amount, $comment)
+function dbTransferMoney($db, $source, $target, $executor, $amount, $comment, $join_transaction=0)
 {
-    $auto = dbGetAutocommit($db);
-
+    if ($join_transaction == 0)
+    {
+        $auto = dbGetAutocommit($db);
+    }
+    
     try 
     {
         dbValidateAccountId($db, $source);
         dbValidateAccountId($db, $target);
         dbValidateUserId($db, $executor);
 
-        $db->autocommit(FALSE);
+        if ($join_transaction == 0)
+            $db->autocommit(FALSE);
 
         if ($db->query("INSERT INTO account_log (source_id, target_id, amount, comment, executor_id) VALUES ($source, $target, $amount, '$comment', $executor)") != TRUE)
         {
@@ -223,9 +222,12 @@ function dbTransferMoney($db, $source, $target, $executor, $amount, $comment)
             throw new dbException("Error adding Cash to $target: " . $db->error);
         }
 
-        if ($db->commit() != TRUE)
+        if ($join_transaction == 0)
         {
-            throw new dbException("COMMIT failed at dbAddUser: " . $db->error);
+            if ($db->commit() != TRUE)
+            {
+                throw new dbException("COMMIT failed at dbAddUser: " . $db->error);
+            }
         }
     }
     catch (dbException $e)
@@ -235,9 +237,148 @@ function dbTransferMoney($db, $source, $target, $executor, $amount, $comment)
     }
     finally
     {
-        $db->autocommit($auto);
+        if ($join_transaction == 0)
+        {
+            $db->autocommit($auto);
+        }
     }
     return;
 }
+
+
+function dbGetFutureOrders($db)
+{
+    if ($orders = $db->query("SELECT id, event_time, is_closed FROM orders WHERE CAST(event_time AS DATE) >= CURRENT_DATE()")) {
+        
+        $result = array();
+        
+        while (($row = $orders->fetch_assoc()) != NULL)
+        {
+            $result[$row['id']] = array ('id' => $row['id'], 'event_time' => $row['event_time'], 'is_closed' => $row['is_closed']);
+        }
+        
+        $orders->free();
+        
+        return $result;
+    }
+    throw new dbException("Problems retrieving future orders");
+}
+
+
+function dbCloseOrder($db, $executor_id, $order_id)
+{
+    global $sales_id;
+    
+    if (($orders = $db->query("SELECT orders.* FROM orders WHERE orders.id = $order_id")) == NULL)
+        throw new dbException("Problems retrieving order $order_id");
+        
+    if (($row = $orders->fetch_assoc()) == NULL)
+        throw new dbException("Problems retrieving order $order_id");
+    
+    $closed = $row["is_closed"];
+    $orders->free;
+    
+    if ($closed != 0)
+    {
+        echo "Already closed<br>";
+        return;
+    }
+    
+    // get entries
+    // SELECT order_entries.user_id, sum(order_entries.Amount * items.price) as amount FROM `order_entries` join items on order_entries.item_id = items.id WHERE order_entries.order_id = 1 group by order_entries.user_id
+    
+    if (($orders = $db->query("SELECT order_entries.user_id, sum(order_entries.Amount * items.price) as amount FROM `order_entries` join items on order_entries.item_id = items.id WHERE order_entries.order_id = $order_id group by order_entries.user_id")) == NULL)
+    {
+        throw new dbException("Problems retrieving order entries for $order_id");
+    }
+    
+    try {
+        $auto = dbGetAutocommit($db);
+        $db->autocommit(FALSE);
+        $comment = "Close Order $order_id";
+        
+        if (!($db->query('UPDATE orders SET is_closed=1 WHERE id = ' . $order_id )))
+        {
+            throw new dbException("Cannotr close order");
+        }
+        
+        while (($row = $orders->fetch_assoc()) != NULL)
+        {
+            $userAccount = dbGetAccountIdForUser($db, $row["user_id"]);
+            
+            dbTransferMoney($db, $sales_id, $userAccount, $executor_id, $row["amount"], $comment, 1);
+        }
+        
+        $db->commit();
+        
+    } catch (dbException $e) {
+        $db->rollback();
+        throw $e;
+    }
+    finally {
+        $db->autocommit($auto);
+    }
+}
+
+
+function dbGetOrderSummary($db, $order_id)
+{
+    if ($orders = $db->query("SELECT orders.event_time, SUM(order_entries.Amount) AS qty, items.name FROM orders JOIN order_entries ON orders.id = order_entries.order_id JOIN items ON order_entries.item_id = items.id WHERE orders.id = $order_id GROUP BY orders.id, items.id ORDER BY items.name")) {
+        
+        $result = array();
+        $result["items"] = array();
+        $cnt = 0;
+        
+        while (($row = $orders->fetch_assoc()) != NULL)
+        {
+            $result["event_time"] = $row["event_time"];
+            $item = array("name" => $row["name"], "amount" => $row["qty"]);
+            $result["items"][$cnt] = $item;
+            $cnt += 1;
+        }
+        
+        $orders->free();
+        
+        return $result;
+    }
+    throw new dbException("Problems retrieving order summary");
+}
+
+
+function dbGetOrderDetails($db, $order_id)
+{
+    if ($orders = $db->query("SELECT users.username, items.name, order_entries.amount FROM users JOIN order_entries ON users.userid = order_entries.user_id JOIN items ON order_entries.item_id = items.id WHERE order_entries.order_id = $order_id and order_entries.amount > 0 ORDER BY username, name")) {
+        
+        $result = array();
+        $cnt = 0;
+        $itemCnt = 0;
+        $currUser = "";
+        $user = array("items" => array());
+        
+        while (($row = $orders->fetch_assoc()) != NULL)
+        {
+            if (strcmp($currUser, $row["username"]) != 0)
+            {
+                if (strlen($currUser) > 0)
+                    $result[$cnt++] = $user;
+                
+                $user = array("items" => array());
+                $itemCnt = 0;
+                $currUser = $row["username"];
+            }
+            
+            $item = array("name" => $row["name"], "amount" => $row["amount"]);
+            $user["username"] = $row["username"];
+            $user["items"][$itemCnt++] = $item;
+        }
+        $result[$cnt++] = $user;
+        
+        $orders->free();
+        
+        return $result;
+    }
+    throw new dbException("Problems retrieving order summary");
+}
+
 ?>
 

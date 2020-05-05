@@ -262,10 +262,10 @@
 
 
         // Einkauf gegen Kasse
-        dbTransferMoney($sqlConnection, $cash_id, $procurement_id, $executor_user_id, $amount, $comment);
+        dbTransferMoney($sqlConnection, $cash_id, $procurement_id, $executor_user_id, 5, $comment);
 
         // Abrechnung einer Breze, man beachte source und target
-        dbTransferMoney($sqlConnection, $sales_id, $account_id, $executor_user_id, $amount, $comment);
+        dbTransferMoney($sqlConnection, $sales_id, $account_id, $executor_user_id, 0.7, $comment);
 
         echo "End of routine<br>";
         return;

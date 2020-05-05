@@ -3,10 +3,10 @@
 
 function sharedHelpers_getUserImageFile($userid)
 {
-    include 'config.php';
+    require 'config.php';
 
     $imgUserFileName = "users/" . $userid . ".jpg";
-    $imgFileName = file_exists($imgUserFileName) ? $imgUserFileName : $ConfigNoImageForUser;
+    $imgFileName = file_exists($imgUserFileName) ? $imgUserFileName : $GLOBALS['ConfigNoImageForUser'];
 
     return $imgFileName;
 }

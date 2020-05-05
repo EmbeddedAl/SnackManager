@@ -18,6 +18,8 @@
     include_once "sharedphp/dbActions.php";
     include 'sharedphp/sharedInputCheck.php';
     include "sharedphp/sharedSqlWrapper.php";
+    
+    global $cash_id;
 
     // require user to be logged in
     if (!isset($_SESSION["userid"]))
@@ -122,17 +124,17 @@
                     <table>
                         <tr>
                             <td align="left">Username:</td>
-                            <td align="left"><input name="username" value="<?php echo "$FormUsername"; ?>"</td>
+                            <td align="left"><input name="username" value="<?php echo "$FormUsername"; ?>"/></td>
                             <td align="left" style="color:red"><?php echo "$UsernameError"; ?></td>
                         </tr>
                         <tr>
                             <td align="left">Amount:</td>
-                            <td align="left"><input name="amount" value="<?php echo "$FormAmount"; ?>"</td>
+                            <td align="left"><input name="amount" value="<?php echo "$FormAmount"; ?>"/></td>
                             <td align="left" style="color:red"><?php echo "$AmountError"; ?></td>
                         </tr>
                         <tr>
                             <td align="left">Comment:</td>
-                            <td align="left"><input name="comment" value="<?php echo "$FormComment"; ?>"</td>
+                            <td align="left"><input name="comment" value="<?php echo "$FormComment"; ?>"/></td>
                             <td align="left" style="color:red"><?php echo "$CommentError"; ?></td>
                         </tr>
                         <tr>
