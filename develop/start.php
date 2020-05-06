@@ -8,6 +8,7 @@
    if (isset($_POST["username"]))
    {
       /* config is needed for connection to db */
+       
       include "config.php";
 
       /* open sql connection */
@@ -23,18 +24,20 @@
       /* query the database */
       $result = $sqlConnection->query ( $sqlStatement );
       if ($result != TRUE)
+      {
           return;
+      }
 
       /* fetch the result from database */
       if ($result->num_rows != 1)
       {
-         echo "<meta http-equiv=\"refresh\" content=\"0; url=index.php\">";
+          echo "<meta http-equiv=\"refresh\" content=\"0; url=index.php\">";
          return;
       }
       else
       {
          /* only one user found */
-         $userFromDatabase = $result->fetch_assoc();
+          $userFromDatabase = $result->fetch_assoc();
 
          $_SESSION["userid"]    = $userFromDatabase['userid'];
          $_SESSION["username"]  = $userFromDatabase['username'];

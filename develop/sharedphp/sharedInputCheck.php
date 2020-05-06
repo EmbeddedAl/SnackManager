@@ -147,4 +147,9 @@ function sharedInputCheck_isPasswordValid($pass)
 }
 
 
+function sharedInputCheck_isAmountValid($amount)
+{
+    return preg_match("/^[0-9]{1,4}([.,][0-9]{1,2})?$/", $amount);
+}
+
 ?>

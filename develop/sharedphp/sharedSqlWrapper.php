@@ -1,5 +1,6 @@
 <?php
 
+include_once "sharedphp/dbActions.php";
 
 function sharedSqlWrapper_connect()
 {
@@ -175,27 +176,31 @@ function sharedSqlWrapper_getLastName($userid)
 
 function shareSqlWrapper_userCreate($username, $firstname, $lastname, $email, $city, $passwordMD5)
 {
-    $returnValue = -1;
+    /*
+    // open connection
 
-    /* open connection */
     $sqlConnection = sharedSqlWrapper_connect();
     if ($sqlConnection == null)
-        return $returnValue;
+        return -1;
+    */        
 
-    /* insert into users */
-    $sqlStatement = "INSERT INTO users (username, firstname, lastname, email, city, password, isadmin) VALUES ("
-            . "'" . $username . "', '" . $firstname . "', '" . $lastname . "', '" . $email . "', '" . $city ."', '" . $passwordMD5 . "', 0)";
+    $sqlConnection = NULL;
 
-    /* query the database */
-    $sqlResult = $sqlConnection->query($sqlStatement);
-    if ($sqlResult != TRUE)
-        goto end;
+    try
+    {
+        $sqlConnection = dbInit();
+        dbAddUser($sqlConnection, $username, $passwordMD5, $lastname, $firstname, $email, $city);
+    }
+    catch (dbException $e)
+    {
+        return -2;
+    }
+    finally
+    {
+        dbClose($sqlConnection);
+    }
 
-    $returnValue = 0;
-
-end:
-    sharedSqlWrapper_disconnect($sqlConnection);
-    return $returnValue;
+    return 0;
 }
 
 
@@ -223,5 +228,121 @@ end:
     return $returnValue;
 }
 
+
+function sharedSqlWrapper_readOpenOrderEntries($user_id)
+{
+    $sqlConnection = sharedSqlWrapper_connect();
+    if ($sqlConnection == null)
+        return NULL;
+
+    if (($orders = $sqlConnection->query("SELECT id, event_time FROM orders WHERE is_closed = 0 ORDER BY event_time")) == FALSE)
+    {
+        sharedSqlWrapper_disconnect($sqlConnection);
+        return NULL;
+    }
+    $cnt = 0;
+    $order_xlat = array();
+
+    while (($row = $orders->fetch_assoc()) != NULL)
+    {
+        $y = array("cnt" => $cnt, "event_time"=>$row["event_time"]);
+        $order_xlat[$row["id"]] = $y;
+        $cnt += 1;
+    }
+
+    $orders->free();
+
+
+    if (($items = $sqlConnection->query("SELECT id, name FROM items ORDER BY name")) == FALSE)
+    {
+        sharedSqlWrapper_disconnect($sqlConnection);
+        return NULL;
+    }
+    $cnt = 0;
+    $item_xlat = array();
+    while (($row = $items->fetch_assoc()) != NULL)
+    {
+        $y = array("cnt" => $cnt, "name"=>$row["name"]);
+        $item_xlat[$row["id"]] = $y;
+        $cnt += 1;
+    }
+    $items->free();
+
+    $amounts=array();
+    for ($i=0; $i<count($item_xlat); $i++)
+    {
+        $itemkey = array_keys($item_xlat)[$i];
+        $amounts[$i] = array();
+        for ($j=0; $j<count($order_xlat); $j++)
+        {
+            $amounts[$i][$j] = array("amount" => 0);
+        }
+    }
+
+    foreach(array_keys($item_xlat) as $itemkey)
+    {
+        $itemindex = $item_xlat[$itemkey]["cnt"];
+        foreach(array_keys($order_xlat) as $orderkey)
+        {
+            $orderindex = $order_xlat[$orderkey]["cnt"];
+            $amounts[$itemindex][$orderindex]["item_id"] = $itemkey;
+            $amounts[$itemindex][$orderindex]["item_name"] = $item_xlat[$itemkey]["name"];
+            $amounts[$itemindex][$orderindex]["order_id"] = $orderkey;
+            $amounts[$itemindex][$orderindex]["event_time"] = $order_xlat[$orderkey]["event_time"];
+        }
+    }
+
+    if (($entries = $sqlConnection->query("SELECT order_id, item_id, amount FROM order_entries WHERE user_id = $user_id")) == FALSE)
+    {
+        sharedSqlWrapper_disconnect($sqlConnection);
+        return NULL;
+    }
+    while (($row = $entries->fetch_assoc()) != NULL)
+    {
+        $orderindex = $order_xlat[$row["order_id"]]["cnt"];
+        $itemindex = $item_xlat[$row["item_id"]]["cnt"];
+        $amounts[$itemindex][$orderindex]["amount"] = $row["amount"];
+    }
+    $entries->free();
+
+    return $amounts;
+}
+
+
+function sharedSqlWrapper_setOrderEntry($user_id, $order_id, $item_id, $amount)
+{
+    $sqlConnection = sharedSqlWrapper_connect();
+    if ($sqlConnection == null)
+        return NULL;
+
+    $need_insert = TRUE;
+    if (($result = $sqlConnection->query("SELECT * from order_entries WHERE order_id=$order_id AND item_id=$item_id AND user_id=$user_id")) != FALSE)
+    {
+        if ($result->num_rows > 0)
+        {
+            $need_insert = FALSE;
+        }
+        $result->free();
+    }
+    if ($need_insert == TRUE)
+    {
+        $sqlConnection->query("INSERT INTO order_entries(order_id, item_id, user_id, amount) VALUES ($order_id, $item_id, $user_id, $amount)");
+    }
+    else
+    {
+        $sqlConnection->query("UPDATE order_entries SET amount=$amount WHERE order_id = $order_id AND item_id = $item_id AND user_id = $user_id");
+    }
+}
+
+function sharedSqlWrapper_getOrderTotals()
+{
+    $sqlConnection = sharedSqlWrapper_connect();
+    if ($sqlConnection == null)
+        return NULL;
+
+    $x = array();
+
+    // "SELECT orders.event_time, items.name, order_entries.Amount FROM order_entries JOIN orders ON order_entries.order_id = orders.id JOIN items ON order_entries.item_id = items.id"
+}
 
 ?>

@@ -9,12 +9,20 @@
             <?php echo "Logged in as: " . $_SESSION["username"] . "</br>"; ?>
             <li><a href="myaccount.php">My account</a></li>
             <li><a href="logout.php">Logout</a></li>
+            <li><a href="change_order.php">Change order</a></li>
 
             <?php
             if (isset($_SESSION["isadmin"]))
             {
                echo "[Administrative area]";
-               ?><li><a href="register.php">Register new user</a></li><?php
+               ?>
+               <li><a href="register.php">Register new user</a></li>
+               <li><a href="accept_cash.php">Accept cash from user</a></li>
+               <li><a href="provide_cash.php">Provide cash to user</a></li>
+               <li><a href="create_order.php">Create order</a></li>
+               <li><a href="close_order.php">Close order</a></li>
+               <li><a href="provide_cash_for_purchase.php">Pay for a purchase</a></li>
+               <?php
             }
          }
 
