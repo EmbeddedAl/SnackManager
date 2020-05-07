@@ -245,8 +245,7 @@ function sharedSqlWrapper_readOpenOrderEntries($user_id)
 
     while (($row = $orders->fetch_assoc()) != NULL)
     {
-        $y = array("cnt" => $cnt, "event_time"=>$row["event_time"]);
-        $order_xlat[$row["id"]] = $y;
+        $order_xlat[$row["id"]] = array("cnt" => $cnt, "event_time"=>$row["event_time"]);
         $cnt += 1;
     }
 
@@ -262,16 +261,15 @@ function sharedSqlWrapper_readOpenOrderEntries($user_id)
     $item_xlat = array();
     while (($row = $items->fetch_assoc()) != NULL)
     {
-        $y = array("cnt" => $cnt, "name"=>$row["name"]);
-        $item_xlat[$row["id"]] = $y;
+        $item_xlat[$row["id"]] = array("cnt" => $cnt, "name"=>$row["name"]);
         $cnt += 1;
     }
     $items->free();
+    
 
     $amounts=array();
     for ($i=0; $i<count($item_xlat); $i++)
     {
-        $itemkey = array_keys($item_xlat)[$i];
         $amounts[$i] = array();
         for ($j=0; $j<count($order_xlat); $j++)
         {
@@ -279,6 +277,7 @@ function sharedSqlWrapper_readOpenOrderEntries($user_id)
         }
     }
 
+    
     foreach(array_keys($item_xlat) as $itemkey)
     {
         $itemindex = $item_xlat[$itemkey]["cnt"];
@@ -292,7 +291,8 @@ function sharedSqlWrapper_readOpenOrderEntries($user_id)
         }
     }
 
-    if (($entries = $sqlConnection->query("SELECT order_id, item_id, amount FROM order_entries WHERE user_id = $user_id")) == FALSE)
+    
+    if (($entries = $sqlConnection->query("SELECT order_entries.order_id, order_entries.item_id, order_entries.amount FROM order_entries JOIN orders ON order_entries.order_id = orders.id WHERE user_id = $user_id AND orders.is_closed = 0")) == FALSE)
     {
         sharedSqlWrapper_disconnect($sqlConnection);
         return NULL;

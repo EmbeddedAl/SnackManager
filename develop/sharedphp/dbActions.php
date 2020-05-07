@@ -27,9 +27,15 @@ Unser verfügbares Vermögen ist also Kasse + Summe(User)
 
 class dbException extends Exception
 {
-    public function __construct($message)
+    public $errorCode;
+    
+    const ERR_GENERIC = 0;
+    const ERR_ORDER_CLOSED = 1;
+    
+    public function __construct($message, $code = ERR_GENERIC)
     {
         parent::__construct($message);
+        $this->errorCode = $code;
     }
 }
 
@@ -280,8 +286,7 @@ function dbCloseOrder($db, $executor_id, $order_id)
     
     if ($closed != 0)
     {
-        echo "Already closed<br>";
-        return;
+        throw new dbException("Order already closed", dbException::ERR_ORDER_CLOSED);
     }
     
     // get entries
@@ -299,7 +304,7 @@ function dbCloseOrder($db, $executor_id, $order_id)
         
         if (!($db->query('UPDATE orders SET is_closed=1 WHERE id = ' . $order_id )))
         {
-            throw new dbException("Cannotr close order");
+            throw new dbException("Cannot close order");
         }
         
         while (($row = $orders->fetch_assoc()) != NULL)
@@ -323,7 +328,7 @@ function dbCloseOrder($db, $executor_id, $order_id)
 
 function dbGetOrderSummary($db, $order_id)
 {
-    if ($orders = $db->query("SELECT orders.event_time, SUM(order_entries.Amount) AS qty, items.name FROM orders JOIN order_entries ON orders.id = order_entries.order_id JOIN items ON order_entries.item_id = items.id WHERE orders.id = $order_id GROUP BY orders.id, items.id ORDER BY items.name")) {
+    if ($orders = $db->query("SELECT orders.is_closed, orders.event_time, SUM(order_entries.Amount) AS qty, items.name FROM orders JOIN order_entries ON orders.id = order_entries.order_id JOIN items ON order_entries.item_id = items.id WHERE orders.id = $order_id GROUP BY orders.id, items.id ORDER BY items.name")) {
         
         $result = array();
         $result["items"] = array();
@@ -332,6 +337,7 @@ function dbGetOrderSummary($db, $order_id)
         while (($row = $orders->fetch_assoc()) != NULL)
         {
             $result["event_time"] = $row["event_time"];
+            $result["is_closed"] = $row["is_closed"];
             $item = array("name" => $row["name"], "amount" => $row["qty"]);
             $result["items"][$cnt] = $item;
             $cnt += 1;
@@ -380,5 +386,63 @@ function dbGetOrderDetails($db, $order_id)
     throw new dbException("Problems retrieving order summary");
 }
 
+function dbGetAccountHistory($db, $user_id)
+{
+    $accountNo = dbGetAccountIdForUser($db, $user_id);
+    
+    if ($account = $db->query("SELECT balance FROM accounts WHERE id = " . $accountNo)) {
+        $result = array("currentAmount" => $account->fetch_assoc()["balance"], "history" => array());
+    }
+    else
+        throw new dbException("Problems retrieving account information");
+        
+    if ($entries = $db->query("SELECT * FROM account_log WHERE source_id = ". $accountNo . " OR target_id = " . $accountNo . " ORDER BY timestamp DESC")) {
+        $cnt = 0;
+        
+        while (($entry = $entries->fetch_assoc()) != NULL)
+        {
+            if ($entry["source_id"] == $account)
+            {
+                $other = $entry["target_id"];
+                $amount = $entry["amount"];
+                
+            }
+            else
+            {
+                $other = $entry["source_id"];
+                $amount = 0-$entry["amount"];
+            }
+            
+            $result["history"][$cnt] = array("Date" => $entry["timestamp"], "AmountChange" => $amount, "OtherAccount" => $other, "Comment" => $entry["comment"]);
+            $cnt += 1;
+        }
+        
+        return $result;
+    }
+    throw new dbException("Problems retrieving account history");
+    
+}
+
+function dbCreateOrder($db, $time)
+{
+    $timevar = new DateTime($time);
+    $delta = new DateInterval('PT21H');
+    $closeTime = $timevar->sub($delta);
+
+    if ($db->query("SELECT * from orders where event_time = '" . $closeTime->format('Y-m-d H:i:s') . "' AND is_closed = 0"))
+    {
+        throw new dbException("Event already exists");
+    }
+    
+    if ($db->query("INSERT INTO orders (event_time, closing_time, is_closed) VALUES (" . $timevar->format('Y-m-d H:i:s') . ", " . $closeTime->format('Y-m-d H:i:s') . ", 0)"))
+    {
+        
+    }
+    else
+    {
+        throw new dbException("Problem creating order");
+    }
+    return;
+}
 ?>
 

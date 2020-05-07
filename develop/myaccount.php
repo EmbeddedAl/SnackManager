@@ -122,6 +122,62 @@
 
               </table>
               </form>
+              
+              <table>
+              <?php
+              global $cash_id;
+              global $procurement_id;
+              global $sales_id;
+              
+              try {
+                  $db = dbInit();
+                  $accountInfo = dbGetAccountHistory($db, $_SESSION['userid']);
+                  $amount = 0 - $accountInfo['currentAmount'];
+                  $history = $accountInfo['history'];
+                  echo "<tr>";
+                  echo "<td>Date</td><td>Amount change</td><td>Other Account</td><td>Comment</td><td>New Amount</td>";
+                  echo "</tr>";
+                  
+                  for ($i=0; $i<count($history); $i++)
+                  {
+                      $line = $history[$i];
+                      $otherAccount = $line["OtherAccount"];
+                      switch($otherAccount)
+                      {
+                          case $cash_id:
+                              $otherAccount = "Cash Register";
+                              break;
+                          case $procurement_id:
+                              $otherAccount = "Procurement";
+                              break;
+                          case $sales_id:
+                              $otherAccount = "Sales";
+                              break;
+                      }
+                      echo "<tr>";
+                      echo "<td>" . $line["Date"] . "</td>";
+                      echo "<td>" . $line["AmountChange"] . "</td>";
+                      echo "<td>" . $otherAccount . "</td>";
+                      echo "<td>" . $line["Comment"] . "</td>";
+                      echo "<td>" . $amount . "</td>";
+                      echo "</tr>";
+                      $amount -= $line["AmountChange"];
+                  }
+              }
+              catch (dbException $e)
+              {
+                  echo "<h2> Database error:" . $e->getMessage() . "</h2>";
+              }
+              finally 
+              {
+                  dbClose($db);
+              }
+              ?>
+              
+              
+              </table>
+              
+              
           </div>
 
         <?php include ("layout/footer.html"); ?>
