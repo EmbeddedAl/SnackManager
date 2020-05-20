@@ -252,7 +252,7 @@ function sharedSqlWrapper_readOpenOrderEntries($user_id)
     $orders->free();
 
 
-    if (($items = $sqlConnection->query("SELECT id, name FROM items ORDER BY name")) == FALSE)
+    if (($items = $sqlConnection->query("SELECT id, name, price FROM items ORDER BY name")) == FALSE)
     {
         sharedSqlWrapper_disconnect($sqlConnection);
         return NULL;
@@ -261,7 +261,7 @@ function sharedSqlWrapper_readOpenOrderEntries($user_id)
     $item_xlat = array();
     while (($row = $items->fetch_assoc()) != NULL)
     {
-        $item_xlat[$row["id"]] = array("cnt" => $cnt, "name"=>$row["name"]);
+        $item_xlat[$row["id"]] = array("cnt" => $cnt, "name"=>$row["name"], 'price' => $row['price']);
         $cnt += 1;
     }
     $items->free();
@@ -286,6 +286,7 @@ function sharedSqlWrapper_readOpenOrderEntries($user_id)
             $orderindex = $order_xlat[$orderkey]["cnt"];
             $amounts[$itemindex][$orderindex]["item_id"] = $itemkey;
             $amounts[$itemindex][$orderindex]["item_name"] = $item_xlat[$itemkey]["name"];
+            $amounts[$itemindex][$orderindex]["price"] = $item_xlat[$itemkey]["price"];
             $amounts[$itemindex][$orderindex]["order_id"] = $orderkey;
             $amounts[$itemindex][$orderindex]["event_time"] = $order_xlat[$orderkey]["event_time"];
         }

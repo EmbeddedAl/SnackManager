@@ -30,4 +30,9 @@ function writeErrorPage($message, $next_page="index.php")
     echo "<meta http-equiv=\"refresh\" content=\"3; url=$next_page\">";
     echo "</body> </html>";
 }
+
+function formatCurrency($amount)
+{
+    return sprintf("%6.2f &euro;", $amount);
+}
 ?>

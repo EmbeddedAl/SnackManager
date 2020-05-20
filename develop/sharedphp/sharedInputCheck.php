@@ -129,21 +129,24 @@ function sharedInputCheck_isCityValid($city)
 function sharedInputCheck_isPasswordValid($pass)
 {
     include 'config.php';
-
-    // Check: not empty
-    if (strlen($pass) == 0)
-        return 0;
-
+    
+    global $MinPasswordLen;
+    global $DefaultPassword;
+    
     // Check: not default
     if ($pass === $DefaultPassword)
-        return 0;
-
+    {
+        return "The password must not be '" . $DefaultPassword . "'";
+    }
+        
+    
     // Check: Needs minimum len
     if (strlen($pass) < $MinPasswordLen)
-        return 0;
+        return 'Minimum password length is ' . $MinPasswordLen . 'characters';
+
 
     // input seems valid
-    return 1;
+    return "";
 }
 
 

@@ -1,38 +1,46 @@
 <div id="nav">
-   <ul>
-      <?php
-         /* check user to be logged in */
-         if (isset($_SESSION["username"]))
-         {
-            ?>
+	<?php 
+	include '../sharedphp/sharedHelpers.php';
+	
+	
+    // check user to be logged in
+    if (isset($_SESSION['username']))
+    {
+        echo '<table>';
+        echo '<tr><td>User:</td><td>' . $_SESSION['username'] . '</td></tr>';
+        if (isset($AccountBalance))
+        {
+            if ($AccountBalance < 0)
+                echo '<tr style="font-size:125%; color:red"><td>Balance:</td><td>' . formatCurrency($AccountBalance) . '</td></tr>';
+            else
+                echo '<tr><td>Balance:</td><td>' . formatCurrency($AccountBalance) . '</td></tr>';
+        }
+        echo '</table>';
 
-            <?php echo "Logged in as: " . $_SESSION["username"] . "</br>"; ?>
-            <li><a href="myaccount.php">My account</a></li>
-            <li><a href="logout.php">Logout</a></li>
-            <li><a href="change_order.php">Change order</a></li>
+        echo '<ul>';
+        echo '    <li><a href="myaccount.php">My Account</a></li>';
+        echo '    <li><a href="change_order.php">Change Order</a></li>';
 
-            <?php
-            if (isset($_SESSION["isadmin"]))
-            {
-               echo "[Administrative area]";
-               ?>
-               <li><a href="register.php">Register new user</a></li>
-               <li><a href="accept_cash.php">Accept cash from user</a></li>
-               <li><a href="provide_cash.php">Provide cash to user</a></li>
-               <li><a href="create_order.php">Create order</a></li>
-               <li><a href="close_order.php">Close order</a></li>
-               <li><a href="provide_cash_for_purchase.php">Pay for a purchase</a></li>
-               <?php
-            }
-         }
-
-         else
-         {
-         ?>
-            Not logged in...
-            <li><a href="index.php">Login</a></li>
-         <?php
-         }
-      ?>
-   </ul>
+        if (isset($_SESSION['isadmin']))
+        {
+            echo '<br/>[Administrative area]<br/>';
+            echo '    <li><a href="register.php">Register New User</a></li>';
+            echo '    <li><a href="accept_cash.php">Accept Cash From User</a></li>';
+            echo '    <li><a href="provide_cash.php">Provide Cash To User</a></li>';
+            echo '    <li><a href="create_order.php">Create Event</a></li>';
+            echo '    <li><a href="close_order.php">Close Event</a></li>';
+            echo '    <li><a href="provide_cash_for_purchase.php">Pay for a Purchase</a></li>';
+        }
+        echo '<br/>';
+        echo '    <li><a href="logout.php">Logout</a></li>';
+        echo '</ul>';
+    }
+    else
+    {
+        echo 'Not logged in...';
+        echo '<ul>';
+        echo '<li><a href="index.php">Login</a></li>';
+        echo '</ul>';
+    }
+    ?>
 </div>

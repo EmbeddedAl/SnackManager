@@ -25,6 +25,8 @@ Einkauf: Wieviel wir insgesamt eingekauft haben (wir haben Geld hergegeben, also
 Unser verfügbares Vermögen ist also Kasse + Summe(User)
 */
 
+include 'config.php';
+
 class dbException extends Exception
 {
     public $errorCode;
@@ -38,6 +40,334 @@ class dbException extends Exception
         $this->errorCode = $code;
     }
 }
+
+
+class queryResult
+{
+    public $record = null;
+    private $data = null;
+    
+    public function __construct($result)
+    {
+        $this->data = $result;        
+    }
+    
+    public function __destruct()
+    {
+        $this->data->close();
+    }
+
+    public function nextRecord()
+    {
+        $this->record = $this->data->fetch_assoc();
+        return ($this->record != null);
+    }
+}
+
+class dbDatabase
+{
+    public $db = NULL;
+    public $transactionCount = 0;
+    
+    public function __construct()
+    {
+        global $dbhost;
+        global $dbuser;
+        global $dbpass;
+        global $dbase;
+        
+        // open sql connection
+        $this->db = new mysqli ( $dbhost, $dbuser, $dbpass, $dbase );
+
+        if ($this->db->connect_error)
+        {
+            throw new dbException('Error connecting the database: ' . $this->db->error);
+        }
+        
+    }
+
+    
+    public function __destruct()
+    {
+        if ($this->db != NULL)
+        {
+            $this->db->close();
+        }
+    }
+    
+    
+    public function beginTransaction()
+    {
+        if ($this->transactionCount == 0)
+        {
+            $this->db->autocommit(false);
+        }
+        $this->transactionCount += 1;
+    }
+    
+    
+    public function commitTransaction()
+    {
+        if ($this->transactionCount == 0)
+        {
+            throw new dbException('No active transaction for commit');
+        }
+        
+        $this->transactionCount -= 1;
+        
+        if ($this->transactionCount == 0)
+        {
+            if ($this->db->commit() != true)
+            {
+                $this->db->rollback();
+                $this->db->autocommit(true);
+
+                throw new dbException('Commit transaction failed');
+            }
+
+            $this->db->autocommit(true);
+        }
+    }
+
+    
+    public function abortTransaction()
+    {
+        if ($this->transactionCount == 0)
+        {
+            throw new dbException('No active transaction for commit');
+        }
+        
+        $this->db->rollback();
+        $this->db->autocommit(true);
+        $this->transactionCount -= 1;
+        
+        if ($this->transactionCount != 0)
+        {
+            $this->transactionCount = 0;
+            throw new dbException('Aborting a nested transaction is not possible');
+        }
+    }
+    
+    
+    public function query($query)
+    {
+        $result = $this->db->query($query);
+
+        if ($result == false)
+            throw new dbException('Query failed:' . $this->db->error);
+
+        return new queryResult($result);
+    }
+    
+
+    public function affectedRows()
+    {
+        return $this->db->affected_rows;
+    }
+
+}
+
+
+class snackDb extends dbDatabase
+{
+    public $cash_accountId = NULL;
+    public $procurement_accountId = NULL;
+    public $sales_accountId = NULL;
+    
+    public function __construct()
+    {
+        try {
+            parent::__construct();
+            
+            $managementInfo = $this->query("SELECT * from management LIMIT 1");
+            $managementInfo->nextRecord();
+            
+            $this->cash_accountId = $managementInfo->record['cash_id'];
+            $this->procurement_accountId = $managementInfo->record['procurement_id'];
+            $this->sales_accountId = $managementInfo->record['sales_id'];
+        } 
+        catch (Exception $e) {
+            throw new dbException("Cannot read management table: " . $this->db->error);
+        }
+    }
+
+    public function __destruct()
+    {
+        parent::__destruct();
+    }
+    
+
+    public function getAccountIdForUser($userId)
+    {
+        $resultSet = $this->query('SELECT account_id FROM users WHERE userid = ' . $userId);
+        
+        if (!$resultSet->nextRecord())        
+            throw new dbException('Cannot find user id ' . $userId . 'in accounts');
+        
+        return $resultSet->record['account_id'];
+    }
+    
+    
+    public function setPasswordHashForUser($userId, $passwordHash)
+    {
+        $query = "UPDATE users SET password ='" . $passwordHash . "' where userid = " . $userId;
+        echo "<br/>" . $query . "<br/>";
+        if (!$this->db->query("UPDATE users SET password ='" . $passwordHash . "' where userid = " . $userId))
+        {
+            throw new dbException('Update of password failed: ' . $this->db->error);
+        }
+    }
+    
+    
+    public function getAccountName($accountId)
+    {
+        switch ($accountId)
+        {
+            case $this->cash_accountId:
+                return 'Cash Register';
+            case $this->procurement_accountId:
+                return "Procurement";
+            case $this->sales_accountId:
+                return "Sales";
+            default:
+                return $accountId;
+        }
+    }
+    
+    
+    public function getAccountBalance($accountId)
+    {
+        $accountData = $this->query('SELECT balance FROM accounts WHERE id = ' . $accountId);
+        if (!$accountData->nextRecord())
+        {
+            throw new dbException("Cannot read account balance: " . $this->db->error);
+        }
+        
+        return $accountData->record['balance'];
+        
+    }
+    
+    
+    public function getAccountHistory($userId)
+    {
+        $accountId = $this->getAccountIdForUser($userId);
+
+        $result = array('balance' => $this->getAccountBalance($accountId), 'history' => array());
+
+        $historyData = $this->query('SELECT * FROM account_log WHERE source_id = ' . $accountId . ' OR target_id = ' . $accountId . ' ORDER BY timestamp DESC');
+        $cnt = 0;
+        
+        while ($historyData->nextRecord())
+        {
+            if ($historyData->record['source_id'] == $accountId)
+            {
+                $otherId = $historyData->record['target_id'];
+                $entryValue = $historyData->record['amount'];
+            }
+            else
+            {
+                $otherId = $historyData->record['source_id'];
+                $entryValue = 0 - $historyData->record['amount'];
+            }
+            $result['history'][$cnt++] = array('timestamp' => $historyData->record['timestamp'], 'entryValue' => $entryValue, 'ContraAccount' => $otherId, 'Comment' => $historyData->record['comment']);
+        }
+        
+        return $result;
+    }
+    
+    public function getOpenOrderData($userId)
+    {
+        $orders = $this->query("SELECT id, event_time FROM orders WHERE is_closed = 0 ORDER BY event_time ASC");
+        $cnt = 0;
+        $order_xlat = array();
+        
+        while ($orders->nextRecord())
+        {
+            $order_xlat[$orders->record["id"]] = array("cnt" => $cnt, "event_time"=>$orders->record["event_time"]);
+            $cnt += 1;
+        }
+        if (sizeof($order_xlat) == 0)
+        {
+            throw new dbException("No open events found.");
+        }
+        
+        $items = $this->query("SELECT id, name, price FROM items ORDER BY name");            
+        $cnt = 0;
+        $item_xlat = array();
+        
+        while($items->nextRecord())
+        {
+            $item_xlat[$items->record["id"]] = array("cnt" => $cnt, "name"=>$items->record["name"], 'price' => $items->record['price']);
+            $cnt += 1;
+        }
+        if (sizeof($item_xlat) == 0)
+        {
+            throw new dbException("No items found.");
+        }
+
+        // create array that contains eventdata, itemdata, ordered_qty for each item OUTER JOIN event
+        $amounts=array();
+        for ($i=0; $i<count($item_xlat); $i++)
+        {
+            $amounts[$i] = array();
+            for ($j=0; $j<count($order_xlat); $j++)
+            {
+                $amounts[$i][$j] = array("amount" => 0);
+            }
+        }
+            
+        foreach(array_keys($item_xlat) as $itemId)
+        {
+            $itemindex = $item_xlat[$itemId]["cnt"];
+            foreach(array_keys($order_xlat) as $orderId)
+            {
+                $orderindex = $order_xlat[$orderId]["cnt"];
+                $amounts[$itemindex][$orderindex]["item_id"] = $itemId;
+                $amounts[$itemindex][$orderindex]["item_name"] = $item_xlat[$itemId]["name"];
+                $amounts[$itemindex][$orderindex]["price"] = $item_xlat[$itemId]["price"];
+                $amounts[$itemindex][$orderindex]["order_id"] = $orderId;
+                $amounts[$itemindex][$orderindex]["event_time"] = $order_xlat[$orderId]["event_time"];
+            }
+        }
+            
+        // fill in the ordered quantities for this user from the database
+        $entries = $this->query("SELECT order_entries.order_id, order_entries.item_id, order_entries.amount FROM order_entries JOIN orders ON order_entries.order_id = orders.id WHERE order_entries.user_id = $userId AND orders.is_closed = 0");
+        
+        // it is ok if we have an empty result set here
+        while ($entries->nextRecord())
+        {
+            $orderindex = $order_xlat[$entries->record["order_id"]]["cnt"];
+            $itemindex = $item_xlat[$entries->record["item_id"]]["cnt"];
+            $amounts[$itemindex][$orderindex]["amount"] = $entries->record["amount"];
+        }
+        
+        return $amounts;
+    }
+    
+    public function setOrderEntry($userId, $orderId, $itemId, $qty)
+    {
+        if ($qty == 0)
+        {
+            $this->db->query("DELETE FROM order_entries WHERE order_id = $orderId AND item_id = $itemId AND user_id = $userId");
+        }
+        else 
+        {
+            $result = $this->query("SELECT * from order_entries WHERE order_id=$orderId AND item_id=$itemId AND user_id=$userId");
+            
+            if ($result->nextRecord())
+            {
+                // exists, do UPDATE
+                $this->db->query("UPDATE order_entries SET amount=$qty WHERE order_id = $orderId AND item_id = $itemId AND user_id = $userId");
+            }
+            else
+            {
+                $this->db->query("INSERT INTO order_entries(order_id, item_id, user_id, amount) VALUES ($orderId, $itemId, $userId, $qty)");
+            }
+        }
+    }
+}
+
+
 
 
 function dbInit($db=NULL)
