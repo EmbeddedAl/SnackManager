@@ -197,6 +197,76 @@ class snackDb extends dbDatabase
     }
     
 
+    public function getUsers()
+    {
+        $users = $this->query("SELECT username, userid FROM users ORDER BY username");
+        $result = array();
+        
+         $cnt = 0;
+        
+        while ($users->nextRecord())
+        {
+            $result[$cnt++] = array('name' => $users->record['username'], 'id' => $users->record['userid']);
+        }
+
+        return $result;
+    }
+    
+    
+    public function userExists($user_id)
+    {
+        if (!$this->query("SELECT * FROM users WHERE userid = '" . $user_id . "'"))
+        {
+            throw new dbException('Query of user failed: ' . $this->db->error);
+        }
+
+        return ($this->affectedRows() > 0);
+    }
+    
+    public function userNameExists($userName)
+    {
+        if (!$this->query("SELECT * FROM users WHERE username = '" . $userName . "'"))
+        {
+            throw new dbException('Query of user failed: ' . $this->db->error);
+        }
+        
+        return ($this->affectedRows() > 0);
+    }
+    
+    public function getUserForUserName($userName)
+    {
+        $users = $this->query("SELECT userid FROM users WHERE username = '" . $userName . "'");
+        
+        if (!$users)
+        {
+            throw new dbException('Query of user failed: ' . $this->db->error);
+        }
+        
+        if (($this->affectedRows() == 0) || !$users->nextRecord())
+        {
+            throw new dbException("User '" . $userName . "' not found.");
+        }
+        
+        return $users->record['userid'];
+    }
+    
+    public function getUserNameForUser($userId)
+    {
+        $users = $this->query("SELECT username FROM users WHERE userid = '" . $userId . "'");
+        
+        if (!$users)
+        {
+            throw new dbException('Query of user failed: ' . $this->db->error);
+        }
+        
+        if (($this->affectedRows() == 0) || !$users->nextRecord())
+        {
+            throw new dbException("User '" . $userId . "' not found.");
+        }
+        return $users->record['username'];
+    }
+    
+    
     public function getAccountIdForUser($userId)
     {
         $resultSet = $this->query('SELECT account_id FROM users WHERE userid = ' . $userId);
@@ -217,6 +287,46 @@ class snackDb extends dbDatabase
             throw new dbException('Update of password failed: ' . $this->db->error);
         }
     }
+    
+
+    public function createAccount()
+    {
+        if (!$this->db->query("INSERT INTO accounts (id, balance) VALUES (NULL, 0)"))
+        {
+            throw new dbException('Creating of account failed: ' . $this->db->error);
+        }
+        return $this->db->insert_id;
+    }
+    
+    
+    public function createUser($userName, $password, $lastname="", $firstname="", $mail="", $city="", $isAdmin=0, $max_credit=0)
+    {
+        try
+        {
+            $this->beginTransaction();
+            
+            $accountId = $this->createAccount();
+            
+            if (!$this->db->query( "INSERT INTO users (lastname, firstname, username, email, city, password, isadmin, account_id, max_credit) " .
+                "VALUES ('$lastname', '$firstname', '$userName', '$mail', '$city', '$password', $isAdmin, $accountId, $max_credit)"))
+            {
+                $this->abortTransaction();
+                throw new dbException('Creating of user failed: ' . $this->db->error);
+            }
+            $userId = $this->db->insert_id;
+            
+            $this->commitTransaction();
+            
+            return $userId;
+        }
+        catch (dbException $e)
+        {
+            $this->abortTransaction();
+            throw $e;
+        }
+    }
+    
+    
     
     
     public function getAccountName($accountId)
@@ -273,6 +383,69 @@ class snackDb extends dbDatabase
         }
         
         return $result;
+    }
+
+    
+    function transferMoney($source, $target, $executor, $amount, $comment, $join_transaction=0)
+    {
+        
+        try
+        {
+            //dbValidateAccountId($db, $source);
+            //dbValidateAccountId($db, $target);
+            //dbValidateUserId($db, $executor);
+            
+            if ($join_transaction == 0)
+            {
+                $this->beginTransaction();
+            }
+            
+            $query = "INSERT INTO account_log (source_id, target_id, amount, comment, executor_id) VALUES ($source, $target, $amount, '$comment', $executor)";
+            if ($this->db->query("INSERT INTO account_log (source_id, target_id, amount, comment, executor_id) VALUES ($source, $target, $amount, '$comment', $executor)") != TRUE)
+            {
+                
+                throw new dbException("Error writing account_log: " . $this->db->error . "<br/>" . $query . "<br/>");
+            }
+                
+            if ($this->db->query("UPDATE accounts SET balance = balance - $amount WHERE id = $source") != TRUE)
+            {
+                throw new dbException("Error withrawing Cash from $source: " . $this->db->error);
+            }
+            
+            if ($this->db->query("UPDATE accounts SET balance = balance + $amount WHERE id = $target") != TRUE)
+            {
+                throw new dbException("Error adding Cash to $target: " . $this->db->error);
+            }
+                
+            if ($join_transaction == 0)
+            {
+                $this->commitTransaction();
+            }
+        }
+        catch (dbException $e)
+        {
+            $this->abortTransaction();
+            
+            throw $e;
+        }
+    }
+        
+    function createEvent($time)
+    {
+        $timevar = new DateTime($time);
+        $closeTime = clone $timevar;
+        $closeTime->sub(new DateInterval('PT21H'));
+        
+        if ($this->db->query("SELECT * from orders where event_time = '" . $timevar->format('Y-m-d H:i:s') . "' AND is_closed = 0"))
+        {
+            if ($this->affectedRows() > 0)
+                throw new dbException("Event already exists");
+        }
+
+        if (!$this->db->query("INSERT INTO orders (event_time, closing_time, is_closed) VALUES ('" . $timevar->format('Y-m-d H:i:s') . "', '" . $closeTime->format('Y-m-d H:i:s') . "', 0)"))
+        {
+            throw new dbException("Problem creating order: " . $this->db->error);
+        }
     }
     
     public function getOpenOrderData($userId)
@@ -365,10 +538,144 @@ class snackDb extends dbDatabase
             }
         }
     }
+    
+
+    public function getFutureOrders()
+    {
+        $result = array();
+        
+        $orders = $this->query("SELECT id, event_time, is_closed FROM orders WHERE CAST(event_time AS DATE) >= CURRENT_DATE()");
+
+        while ($orders->nextRecord())
+        {
+            $result[$orders->record["id"]] = array('id' => $orders->record["id"], 'event_time' => $orders->record["event_time"], 'is_closed' => $orders->record["is_closed"]);
+        }
+
+        if (sizeof($result) == 0)
+        {
+            throw new dbException("Problems retrieving future orders");
+            
+        }
+        
+        return $result;
+    }
+    
+    
+    public function getOrderSummary($order_id)
+    {
+        $result = array();
+        $result["items"] = array();
+        $cnt = 0;
+        
+        $orders = $this->query("SELECT orders.is_closed, orders.event_time, SUM(order_entries.Amount) AS qty, items.name FROM orders JOIN order_entries ON orders.id = order_entries.order_id JOIN items ON order_entries.item_id = items.id WHERE orders.id = $order_id GROUP BY orders.id, items.id ORDER BY items.name");
+        
+        while ($orders->nextRecord())
+        {
+            $result["event_time"] = $orders->record["event_time"];
+            $result["is_closed"] = $orders->record["is_closed"];
+            $result["items"][$cnt] = array("name" => $orders->record["name"], "amount" => $orders->record["qty"]);
+            $cnt += 1;
+        }
+        
+        if ($cnt == 0)
+        {
+            throw new dbException("Problems retrieving order summary");
+        }
+        
+        return $result;
+    }
+
+
+    public function getOrderDetails($order_id)
+    {
+        $result = array();
+        $cnt = 0;
+        $itemCnt = 0;
+        $currUser = "";
+        $user = array("items" => array());
+        $orders = $this->query("SELECT users.username, items.name, order_entries.amount FROM users JOIN order_entries ON users.userid = order_entries.user_id JOIN items ON order_entries.item_id = items.id WHERE order_entries.order_id = $order_id and order_entries.amount > 0 ORDER BY username, name");
+        
+        while ($orders->nextRecord())
+        {
+            if (strcmp($currUser, $orders->record["username"]) != 0)
+            {
+                if (strlen($currUser) > 0)
+                    $result[$cnt++] = $user;
+                    
+                $user = array("items" => array());
+                $itemCnt = 0;
+                $currUser = $orders->record["username"];
+            }
+            
+            $item = array("name" => $orders->record["name"], "amount" => $orders->record["amount"]);
+            $user["username"] = $orders->record["username"];
+            $user["items"][$itemCnt++] = $item;
+        }
+        $result[$cnt++] = $user;
+        
+        if ($currUser == "")
+        {
+            throw new dbException("Problems retrieving order details");
+        }
+           
+        return $result;
+    }
+
+
+    public function closeOrder($executor_id, $order_id)
+    {
+        global $sales_id;
+        
+        $orders = $this->query("SELECT orders.* FROM orders WHERE orders.id = $order_id");
+        
+        if (!$orders->nextRecord())
+        {
+            throw new dbException("Problems retrieving order $order_id");
+        }
+            
+        if ($orders->record["is_closed"] != 0)
+        {
+            throw new dbException("Order already closed", dbException::ERR_ORDER_CLOSED);
+        }
+                
+        $orders = $this->query("SELECT order_entries.user_id, sum(order_entries.Amount * items.price) as amount FROM `order_entries` join items on order_entries.item_id = items.id WHERE order_entries.order_id = $order_id group by order_entries.user_id");
+
+        if ($this->affectedRows() == 0)
+        {
+            throw new dbException("Problems retrieving order entries for $order_id");
+        }
+                
+        $comment = "Close Order $order_id";
+        
+        try 
+        {
+            $this->beginTransaction();
+            
+            if (!$this->db->query('UPDATE orders SET is_closed=1 WHERE id = ' . $order_id))
+                throw new dbException("Cannot close order");
+            
+            while ($orders->nextRecord())
+            {
+                $userAccount = $this->getAccountIdForUser($orders->record["user_id"]);
+                
+                $this->transferMoney($sales_id, $userAccount, $executor_id, $orders->record["amount"], $comment, 1);
+            }
+            
+            $this->commitTransaction();
+                
+        } 
+        catch (Exception $e) 
+        {
+            $this->abortTransaction();
+            throw $e;
+        }
+    }
+
+    
 }
 
 
-
+/*
 
 function dbInit($db=NULL)
 {
@@ -774,5 +1081,6 @@ function dbCreateOrder($db, $time)
     }
     return;
 }
+*/
 ?>
 

@@ -6,7 +6,9 @@
 <?php
    include 'sharedphp/sharedHelpers.php';
    include 'sharedphp/sharedInputCheck.php';
-   include_once 'sharedphp/dbActions.php'; 
+   include 'sharedphp/dbActions.php';
+   
+   $PageTitle = "My Account";
    
    
    /* require user to be logged in */
@@ -60,7 +62,6 @@
     <body>
         <div id="page">
             <?php 
-                $PageTitle = "My Account";
                 include ("layout/header.php");
 
                 include ("layout/nav.html"); 

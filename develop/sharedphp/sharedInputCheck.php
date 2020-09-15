@@ -126,7 +126,7 @@ function sharedInputCheck_isCityValid($city)
 }
 
 
-function sharedInputCheck_isPasswordValid($pass)
+function sharedInputCheck_isPasswordValidOld($pass)
 {
     include 'config.php';
     
@@ -142,12 +142,37 @@ function sharedInputCheck_isPasswordValid($pass)
     
     // Check: Needs minimum len
     if (strlen($pass) < $MinPasswordLen)
-        return 'Minimum password length is ' . $MinPasswordLen . 'characters';
+        return 'Minimum password length is ' . $MinPasswordLen . 'characters, you have ' . strlen($pass);
 
 
     // input seems valid
     return "";
 }
+
+
+function sharedInputCheck_checkPasswordValidity($pass)
+{
+    include 'config.php';
+    
+    global $MinPasswordLen;
+    global $DefaultPassword;
+    
+    // Check: not default
+    if ($pass === $DefaultPassword)
+    {
+        return "The password must not be '" . $DefaultPassword . "'";
+    }
+    
+    
+    // Check: Needs minimum len
+    if (strlen($pass) < $MinPasswordLen)
+        return 'Minimum password length is ' . $MinPasswordLen . ' characters';
+        
+        
+    // input seems valid
+    return "";
+}
+
 
 
 function sharedInputCheck_isAmountValid($amount)

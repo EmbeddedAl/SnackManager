@@ -1,27 +1,11 @@
-<?php session_start(); ?>
-
-<html>
-    <head>
-        <?php include ("layout/title.html"); ?>
-        <link rel="stylesheet" href="layout/style.css">
-    </head>
-
-    <body>
-        <div id="page">
-            <?php include ("layout/header.html"); ?>
-            <?php include ("layout/nav.html"); ?>
-
-            <div id="content">
-            <h2>Provide cash for purchase</h2>
-
 <?php
-    include_once "sharedphp/dbActions.php";
+    include "sharedphp/dbActions.php";
     include 'sharedphp/sharedInputCheck.php';
-    include "sharedphp/sharedSqlWrapper.php";
     
-    global $cash_id;
-    global $procurement_id; 
-
+    $PageTitle = "Pay for a Purchase";
+    
+    session_start();
+    
     // require user to be logged in
     if (!isset($_SESSION["userid"]))
     {
@@ -36,84 +20,94 @@
         return;
     }
 
-    $AmountError="2";
-    $CommentError="3";
+    $AmountError="";
+    $CommentError="";
     $DefaultComment="Type of purchase";
+    $MessageString = "";
 
-    if (isset($_POST["commit"]))
+    try 
     {
+        $newdb = new snackDb();
         
-		$FormAmount = $_POST["amount"];
-		$FormComment = trim($_POST["comment"]);
-
-        if (sharedInputCheck_isAmountValid($FormAmount) == 1)
+        if (isset($_POST["commit"]))
         {
-            $FormAmount = str_replace(",", ".", $FormAmount);
-            if ((float)$FormAmount == 0)
-            {
-                $AmountError = "Must not be zero";
-            }
-            else
-            {
-                $AmountError = "";
-            }
-        }
-        else
-        {
-            $AmountError = "Not a number (Format: 4.2)";
-        }
-
-        if (strlen($FormComment) == 0)
-        {
-            $CommentError = "Must not be empty.";
-        }
-        else
-        {
-            if (strcmp(trim($DefaultComment), trim($FormComment)) == 0)
-            {
-                $CommentError = "You must provide the type of purchase";
-            }
-            else
-                $CommentError = "";
-        }
-
-        if (strlen($AmountError . $CommentError) == 0)
-        {
-            $db = NULL;
             
-            try
+    		$FormAmount = $_POST["amount"];
+    		$FormComment = trim($_POST["comment"]);
+    
+            if (sharedInputCheck_isAmountValid($FormAmount) == 1)
             {
-                $db = dbInit();
-
-                $sourceAccount = $cash_id;
-                $targetAccount = $procurement_id;
+                $FormAmount = str_replace(",", ".", $FormAmount);
+                if ((float)$FormAmount == 0)
+                {
+                    $AmountError = "Must not be zero";
+                }
+                else
+                {
+                    $AmountError = "";
+                }
+            }
+            else
+            {
+                $AmountError = "Not a number (Format: 4.2)";
+            }
+    
+            if (strlen($FormComment) == 0)
+            {
+                $CommentError = "Must not be empty.";
+            }
+            else
+            {
+                if (strcmp(trim($DefaultComment), trim($FormComment)) == 0)
+                {
+                    $CommentError = "You must provide the type of purchase";
+                }
+                else
+                    $CommentError = "";
+            }
+    
+            if (strlen($AmountError . $CommentError) == 0)
+            {
+                $sourceAccount = $newdb->cash_accountId;
+                $targetAccount = $newdb->procurement_accountId;
                 $executor = $_SESSION["userid"];
-                dbTransferMoney($db, $sourceAccount, $targetAccount, $executor, $FormAmount, $FormComment);
-                echo "Provide $FormAmount EUR for purchase<br><br>";
+                $newdb->transferMoney($sourceAccount, $targetAccount, $executor, $FormAmount, $FormComment);
+                $MessageString = "Provide $FormAmount EUR for purchasing $FormComment";
 
                 // all done, prepare next round
                 $FormAmount = 0;
                 $FormComment = $DefaultComment;
                 $_POST = array();
-                
-            }
-            catch (dbException $e)
-            {
-                echo "<h2>Error: ". $e->getMessage() . "</h2>";
-            }
-            finally
-            {
-                dbClose($db);
             }
         }
-    }
-    else
+        else
+        {
+    		$FormAmount = 0;
+            $FormComment = $DefaultComment;
+        }
+    } 
+    catch (dbException $e) 
     {
-		$FormAmount = 0;
-        $FormComment = $DefaultComment;
+        $MessageString = "Database error: ". $e->getMessage();
     }
-
 ?>
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+    <head>
+        <?php include ("layout/title.html"); ?>
+        <link rel="stylesheet" href="layout/style.css">
+    </head>
+
+    <body>
+        <div id="page">
+            <?php include ("layout/header.php"); ?>
+            <?php include ("layout/nav.html"); ?>
+
+            <div id="content">
+            	<?php if (strlen($MessageString) > 0) { echo "<h2>" . $MessageString . "</h2><br/>"; } ?>
+
                 <form action="provide_cash_for_purchase.php" method="post">
                     <table>
                         <tr>

@@ -1,23 +1,7 @@
-<?php session_start(); ?>
-
-<html>
-    <head>
-        <?php include ("layout/title.html"); ?>
-        <link rel="stylesheet" href="layout/style.css">
-    </head>
-
-    <body>
-        <div id="page">
-            <?php include ("layout/header.html"); ?>
-            <?php include ("layout/nav.html"); ?>
-
-            <div id="content">
-<?php
+<?php 
 include_once "sharedphp/dbActions.php";
 
-
-
-function doCloseOrder($db, $order_id)
+function doCloseOrder($order_id)
 {
     try {
         if ($order_id == NULL)
@@ -26,7 +10,8 @@ function doCloseOrder($db, $order_id)
             return FALSE;
         }
         
-        dbCloseOrder($db, $_SESSION["userid"], $order_id);
+        $newdb = new snackDb();
+        $newdb->dbCloseOrder($_SESSION["userid"], $order_id);
             
         return TRUE;
     }
@@ -39,13 +24,16 @@ function doCloseOrder($db, $order_id)
     }
 }
 
-function doShowOrder($db, $order_id)
+function doShowOrder($order_id)
 {
     try {
         if ($order_id == NULL)
             return FALSE;
-
-        $summary = dbGetOrderSummary($db, $order_id);
+        
+        $newdb = new snackDb();
+            
+        //$summary = dbGetOrderSummary($db, $order_id);
+        $summary = $newdb->getOrderSummary($order_id);
 
         echo '<h2>Summary of order ' . $summary["event_time"] . '</h2>';
         echo '<form action="close_order.php" method="post">';
@@ -62,7 +50,7 @@ function doShowOrder($db, $order_id)
         
         // get order lines: username, item_name, amount (amount > 0)
         
-        $details = dbGetOrderDetails($db, $order_id);
+        $details = $newdb->getOrderDetails($order_id);
         echo '<h2>Details of order ' . $summary["event_time"] . '</h2>';
         echo '<table>';
         echo '<tr><td>User</td><td>Item</td><td>Quantity</td><tr>';
@@ -104,6 +92,10 @@ function doShowOrder($db, $order_id)
     }
 }
 
+$PageTitle = "Close Event";
+
+session_start();
+
 
 // require user to be logged in
 if (!isset($_SESSION["userid"]))
@@ -119,25 +111,40 @@ if (!isset($_SESSION["isadmin"]))
     return;
 }
 
+?>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+    <head>
+        <?php include ("layout/title.html"); ?>
+        <link rel="stylesheet" href="layout/style.css">
+    </head>
+
+    <body>
+        <div id="page">
+            <?php include ("layout/header.php"); ?>
+            <?php include ("layout/nav.html"); ?>
+
+            <div id="content">
+<?php
 
 try {
-    $db = dbInit();
-    $message = "<h1>Show Order</h1>";
+    $message = "";
     
     $processed = FALSE;
     
     if (($processed == FALSE) && isset($_POST['really']))
     {
         $order_id = $_POST['order'];
-        if (doCloseOrder($db, $order_id) == TRUE)
+        if (doCloseOrder($order_id) == TRUE)
         {
             $processed = TRUE;
-            $message = "<h1>Order was closed</h1>";
+            $message = "Order was closed";
         }
         else 
         {
             $_POST["show"] = 1;                 
-            $message = "<h1>Order could not be closed</h1>";
+            $message = "Order could not be closed";
         }
     }
     if (($processed == FALSE) && isset($_POST['close']))
@@ -145,7 +152,7 @@ try {
         $order_id = $_POST['order'];
         echo '<form action="close_order.php" method="post">';
         echo '<table>';
-        echo '<tr><td/><td>Relly? Are you sure?</td><td/></tr>';
+        echo '<tr><td/><td>Really? Are you sure?</td><td/></tr>';
         echo '<tr>';
         echo '<td align="left"><input type="hidden" name="order" value="' . $order_id . '"></td>';
         echo '<td align="left"><input type="submit" name="really" value="!Yes!" /></td>';
@@ -159,14 +166,16 @@ try {
     if (($processed == FALSE) && isset($_POST['show']))
     {
         $order_id = $_POST['order'];
-        echo $message;
-        if (doShowOrder($db, $order_id) == TRUE)
+        echo "<h1>" . $message . "</h1>";
+        
+        if (doShowOrder($order_id) == TRUE)
             $processed = TRUE;
     }
 
     if ($processed == FALSE)
     {
-        $orders = dbGetFutureOrders($db);
+        $newdb = new snackDb();
+        $orders = $newdb->getFutureOrders();
         
         echo '<h2>Select order to display</h2>';
         echo '<form action="close_order.php" method="post">';
@@ -194,9 +203,6 @@ try {
 catch (dbException $e) {
     echo "<h2> Database error:" . $e->getMessage() . "</h2>";
     
-}
-finally {
-    dbClose($db);
 }
 
 ?>

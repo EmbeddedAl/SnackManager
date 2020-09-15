@@ -1,26 +1,11 @@
-<?php session_start(); ?>
-
-<html>
-    <head>
-        <?php include ("layout/title.html"); ?>
-        <link rel="stylesheet" href="layout/style.css">
-    </head>
-
-    <body>
-        <div id="page">
-            <?php include ("layout/header.html"); ?>
-            <?php include ("layout/nav.html"); ?>
-
-            <div id="content">
-            <h2>Provide cash</h2>
-
 <?php
-    include_once "sharedphp/dbActions.php";
+    include "sharedphp/dbActions.php";
     include 'sharedphp/sharedInputCheck.php';
-    include "sharedphp/sharedSqlWrapper.php";
+   
+    $PageTitle = "Pay Back Cash to User";
     
-    global $cash_id;
-
+    session_start();
+    
     // require user to be logged in
     if (!isset($_SESSION["userid"]))
     {
@@ -35,97 +20,118 @@
         return;
     }
 
-    $UsernameError="1";
-    $AmountError="2";
-    $CommentError="3";
-
-    if (isset($_POST["commit"]))
+    try
     {
+        $UserError="";
+        $AmountError="";
+        $CommentError="";
+        $MessageString = "";
         
-		$FormUsername = $_POST["username"];
-		$FormAmount = $_POST["amount"];
-		$FormComment = trim($_POST["comment"]);
-
-        if (sharedInputCheck_isAmountValid($FormAmount) == 1)
+        $newdb = new snackDb();
+        
+        if (isset($_POST["commit"]))
         {
-            $FormAmount = str_replace(",", ".", $FormAmount);
-            if ((float)$FormAmount == 0)
+            
+    		$FormUser = $_POST["user_id"];
+    		$FormAmount = $_POST["amount"];
+    		$FormComment = trim($_POST["comment"]);
+    
+            if (sharedInputCheck_isAmountValid($FormAmount) == 1)
             {
-                $AmountError = "Must not be zero";
+                $FormAmount = str_replace(",", ".", $FormAmount);
+                if ((float)$FormAmount > 0)
+                {
+                    $AmountError = "";
+                }
+                else
+                {
+                    $AmountError = "Must not be zero";
+                }
             }
             else
             {
-                $AmountError = "";
+                $AmountError = "Not a number (Format: 4.2)";
             }
-        }
-        else
-        {
-            $AmountError = "Not a number (Format: 4.2)";
-        }
-
-		if (sharedSqlWrapper_userExists($FormUsername) == 1)
-        {
-            $UsernameError = "";
-        }
-        else
-        {
-            $UsernameError = "User '$FormUsername' not found.";
-        }
-        
-        if (strlen($FormComment) == 0)
-        {
-            $CommentError = "Must not be empty.";
-        }
-        else
-        {
-            $CommentError = "";
-        }
-
-        if (strlen($UsernameError . $AmountError . $CommentError) == 0)
-        {
-            $db = NULL;
-            
-            try
+    
+            if ($newdb->userExists($FormUser))
             {
-                $db = dbInit();
-
-                $targetAccount = dbGetAccountIdForUser($db, dbGetUserId($db, $FormUsername));
-                $sourceAccount = $cash_id;
+                $UserError = "";
+            }
+            else
+            {
+                $UserError = "User '$FormUser' not found.";
+            }
+            
+            if (strlen($FormComment) > 0)
+            {
+                $CommentError = "";
+            }
+            else
+            {
+                $CommentError = "Must not be empty.";
+            }
+    
+            if (strlen($UserError . $AmountError . $CommentError) == 0)
+            {
+                $sourceAccount = $newdb->getAccountIdForUser($FormUser);
+                $targetAccount = $newdb->cash_accountId;
                 $executor = $_SESSION["userid"];
-                dbTransferMoney($db, $sourceAccount, $targetAccount, $executor, $FormAmount, $FormComment);
-                echo "User '$FormUsername' receives $FormAmount EUR from his account<br><br>";
+                
+                $newdb->transferMoney($sourceAccount, $targetAccount, $executor, $FormAmount, $FormComment);
+                $MessageString = "User '" . $newdb->getUserNameForUser($FormUser) . "' receives " . $FormAmount . " EUR from his account<br><br>";
 
                 // all done, prepare next round
                 $FormAmount = 0;
-                $FormUsername = "";
+                $FormUser = "";
                 $FormComment = "Cash Withdraw";
                 $_POST = array();
-                
-            }
-            catch (dbException $e)
-            {
-                echo "<h2>Error: ". $e->getMessage() . "</h2>";
-            }
-            finally
-            {
-                dbClose($db);
             }
         }
+        else
+        {
+    		$FormUser = "";
+    		$FormAmount = 0;
+            $FormComment = "Cash Withdraw";
+        }
+        
+        $users = $newdb->getUsers();
     }
-    else
+    catch (dbException $e)
     {
-		$FormUsername = "";
-		$FormAmount = 0;
-        $FormComment = "Cash Withdraw";
+        $MessageString = "Database error: ". $e->getMessage();
     }
-
 ?>
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+    <head>
+        <?php include ("layout/title.html"); ?>
+        <link rel="stylesheet" href="layout/style.css">
+    </head>
+
+    <body>
+        <div id="page">
+            <?php include ("layout/header.php"); ?>
+            <?php include ("layout/nav.html"); ?>
+
+            <div id="content">
+         		<?php if (strlen($MessageString) > 0) { echo "<h2>" . $MessageString . "</h2><br/>"; } ?>
+         	
                 <form action="provide_cash.php" method="post">
                     <table>
                         <tr>
                             <td align="left">Username:</td>
-                            <td align="left"><input name="username" value="<?php echo "$FormUsername"; ?>"/></td>
-                            <td align="left" style="color:red"><?php echo "$UsernameError"; ?></td>
+                            <td align="left"><select id="user_id" name="user_id">
+                            <option value=""></option>
+                            <?php
+                            for ($i=0; $i<count($users); $i++)
+                            {
+                                echo '<option value="' . $users[$i]['id'] . '">' . $users[$i]['name'] . '</option>';
+                            }
+                            ?>
+                            </select></td>
+                            <td align="left" style="color:red"><?php echo "$UserError"; ?></td>
                         </tr>
                         <tr>
                             <td align="left">Amount:</td>

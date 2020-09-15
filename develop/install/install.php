@@ -1,10 +1,24 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <body>
 <?php
     include "../config.php";
     include "../sharedphp/dbActions.php";
 
-    echo "<h1> Intallation </h1>";
+    function dbDropTable($db, $table_name)
+    {
+        if ($db->query("DROP TABLE IF EXISTS $table_name" ) != TRUE)
+        {
+            echo "Error dropping table '$table_name': " . $db->error . "<br>";
+        }
+        else
+        {
+            echo "Table '$table_name' dropped<br>";
+        }
+        return;
+    }
+    
+    echo "<h1> Installation </h1>";
     echo "<h2> Your config file settings: </h2>";
     echo "Configuration: <br>";
     echo "> User:   " . $dbuser . "<br>";
@@ -162,7 +176,9 @@
     if (isset ( $_POST ['insertUsers'] ))
     {
         echo "<h2> Insert demo users to database:</h2>";
-
+        $newdb = new snackDb();
+        echo "<h2>Database is open</h2>";
+/*
         try
         {
             dbInit($sqlConnection);
@@ -172,27 +188,29 @@
             echo "Error initializing the database: " . $e->getMessage() . "<br>";
             return;
         }
-
+*/
         // create some users
         try
         {
-            dbAddUser($sqlConnection, "hamming",    md5("password"), "Hamming",     "Richard",      "info0@ThisShouldNotBeAValid.Domain", "Berlin",     1);
-            dbAddUser($sqlConnection, "leibnitz",   md5("password"), "Leibnitz",    "Gottfried",    "info1@ThisShouldNotBeAValid.Domain", "Berlin",     0);
-            dbAddUser($sqlConnection, "lovelace",   md5("password"), "Lovelace",    "Ada",          "info2@ThisShouldNotBeAValid.Domain", "Berlin",     0);
-            dbAddUser($sqlConnection, "richie",     md5("password"), "Richie",      "Dennis",       "info3@ThisShouldNotBeAValid.Domain", "Munich",     0);
-            dbAddUser($sqlConnection, "shannon",    md5("password"), "Shannon",     "Claude",       "info4@ThisShouldNotBeAValid.Domain", "Munich",     0);
-            dbAddUser($sqlConnection, "stallman",   md5("password"), "Stallman",    "Richard",      "info5@ThisShouldNotBeAValid.Domain", "Berlin",     0);
-            dbAddUser($sqlConnection, "tannenbaum", md5("password"), "Tannenbaum",  "Andrew",       "info6@ThisShouldNotBeAValid.Domain", "Hamburg",    0);
-            dbAddUser($sqlConnection, "torvalds",   md5("password"), "Torvalds",    "Linus",        "info7@ThisShouldNotBeAValid.Domain", "Stuttgart",  0);
-            dbAddUser($sqlConnection, "turing",     md5("password"), "Turing",      "Alan",         "info8@ThisShouldNotBeAValid.Domain", "Leipzig",    0);
-            dbAddUser($sqlConnection, "zuse",       md5("password"), "Zuse",        "Konrad",       "info9@ThisShouldNotBeAValid.Domain", "Berlin",     0);
+            
+            $newdb->createUser("hamming",    md5("password"), "Hamming",     "Richard",      "info0@ThisShouldNotBeAValid.Domain", "Berlin",     1);
+            $newdb->createUser("leibnitz",   md5("password"), "Leibnitz",    "Gottfried",    "info1@ThisShouldNotBeAValid.Domain", "Berlin",     0);
+            $newdb->createUser("lovelace",   md5("password"), "Lovelace",    "Ada",          "info2@ThisShouldNotBeAValid.Domain", "Berlin",     0);
+            $newdb->createUser("richie",     md5("password"), "Richie",      "Dennis",       "info3@ThisShouldNotBeAValid.Domain", "Munich",     0);
+            $newdb->createUser("shannon",    md5("password"), "Shannon",     "Claude",       "info4@ThisShouldNotBeAValid.Domain", "Munich",     0);
+            $newdb->createUser("stallman",   md5("password"), "Stallman",    "Richard",      "info5@ThisShouldNotBeAValid.Domain", "Berlin",     0);
+            $newdb->createUser("tannenbaum", md5("password"), "Tannenbaum",  "Andrew",       "info6@ThisShouldNotBeAValid.Domain", "Hamburg",    0);
+            $newdb->createUser("torvalds",   md5("password"), "Torvalds",    "Linus",        "info7@ThisShouldNotBeAValid.Domain", "Stuttgart",  0);
+            $newdb->createUser("turing",     md5("password"), "Turing",      "Alan",         "info8@ThisShouldNotBeAValid.Domain", "Leipzig",    0);
+            $newdb->createUser("zuse",       md5("password"), "Zuse",        "Konrad",       "info9@ThisShouldNotBeAValid.Domain", "Berlin",     0);
             echo "INSERT INTO 'users' returned successfully<br>";
         }
         catch (dbException $e)
         {
-            echo "Error adding users: " . $e->getMessage() . "<br>";
+            echo "<h2>Error adding users: " . $e->getMessage() . "</h2><br>";
             return;
         }
+        echo "<h2>Users created</h2>";
 
         if ($sqlConnection->query("INSERT INTO items (Name, Price) VALUES ('Weisswurst', 1.70)") != TRUE)
         {
@@ -226,7 +244,7 @@
         // create a new user
         try
         {
-            $user_id = dbAddUser($sqlConnection, 'ab', 'password', 'Badforest', 'Albert', 'ab@invalid.local', 'Inningen');
+            $user_id = $newdb->createUser('ba', 'password', 'Badforest', 'Alfred', 'ab@invalid.local', 'Anykaff');
             echo "User created with id $user_id<br>";
         }
         catch (dbException $e)
@@ -243,8 +261,8 @@
 
         try
         {
-            $account_id = dbGetAccountIdForUser($sqlConnection, $user_id);
-            dbTransferMoney($sqlConnection, $account_id, $cash_id, $executor_user_id, $amount, $comment);
+            $account_id = $newdb->getAccountIdForUser($user_id);
+            $newdb->transferMoney($account_id, $newdb->cash_accountId, $executor_user_id, $amount, $comment);
             echo "transfer done.<br>";
         }
         catch (dbException $e)
@@ -262,10 +280,10 @@
 
 
         // Einkauf gegen Kasse
-        dbTransferMoney($sqlConnection, $cash_id, $procurement_id, $executor_user_id, 5, $comment);
+        $newdb->transferMoney($newdb->cash_accountId, $newdb->procurement_accountId, $executor_user_id, 5, $comment);
 
         // Abrechnung einer Breze, man beachte source und target
-        dbTransferMoney($sqlConnection, $sales_id, $account_id, $executor_user_id, 0.7, $comment);
+        $newdb->transferMoney($newdb->sales_accountId, $account_id, $executor_user_id, 0.7, $comment);
 
         echo "End of routine<br>";
         return;
@@ -276,6 +294,7 @@
     {
         echo "<h2> Drop all tables from database:</h2>";
 
+      
         dbDropTable($sqlConnection, "users");
         dbDropTable($sqlConnection, "accounts");
         dbDropTable($sqlConnection, "account_log");
