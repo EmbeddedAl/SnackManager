@@ -1,11 +1,11 @@
 <?php
+    session_start();
+
     include "sharedphp/dbActions.php";
     include 'sharedphp/sharedInputCheck.php';
     
     $PageTitle = "Pay for a Purchase";
-    
-    session_start();
-    
+  
     // require user to be logged in
     if (!isset($_SESSION["userid"]))
     {
@@ -32,8 +32,10 @@
         if (isset($_POST["commit"]))
         {
             
+            
     		$FormAmount = $_POST["amount"];
     		$FormComment = trim($_POST["comment"]);
+    		$Receiver = trim($_POST["user_id"]);
     
             if (sharedInputCheck_isAmountValid($FormAmount) == 1)
             {
@@ -68,12 +70,21 @@
     
             if (strlen($AmountError . $CommentError) == 0)
             {
-                $sourceAccount = $newdb->cash_accountId;
                 $targetAccount = $newdb->procurement_accountId;
                 $executor = $_SESSION["userid"];
+                
+                $sourceAccount = $newdb->cash_accountId;
                 $newdb->transferMoney($sourceAccount, $targetAccount, $executor, $FormAmount, $FormComment);
                 $MessageString = "Provide $FormAmount EUR for purchasing $FormComment";
-
+                
+                $user_id = intval($Receiver);
+                if ($user_id > 0) {
+                    // handle al payment by Receiver
+                    $sourceAccount = $newdb->getAccountIdForUser($user_id);
+                    $targetAccount = $newdb->cash_accountId;
+                    $newdb->transferMoney($sourceAccount, $targetAccount, $executor, $FormAmount, $FormComment);
+                    $MessageString = "$FormAmount EUR booked to account of " . $newdb->getUserNameForUser($user_id) . " for purchasing $FormComment";
+                }
                 // all done, prepare next round
                 $FormAmount = 0;
                 $FormComment = $DefaultComment;
@@ -85,6 +96,8 @@
     		$FormAmount = 0;
             $FormComment = $DefaultComment;
         }
+        $users = $newdb->getUsers();
+        
     } 
     catch (dbException $e) 
     {
@@ -118,6 +131,19 @@
                         <tr>
                             <td align="left">Comment:</td>
                             <td align="left"><input name="comment" value="<?php echo "$FormComment"; ?>"/></td>
+                            <td align="left" style="color:red"><?php echo "$CommentError"; ?></td>
+                        </tr>
+                        <tr>
+                            <td align="left">Receiver:</td>
+                            <td align="left"><select id="user_id" name="user_id">
+                            <option value="Cash out" default>Cash out</option>
+                            <?php
+                            for ($i=0; $i<count($users); $i++)
+                            {
+                                echo '<option value="' . $users[$i]['id'] . '">' . $users[$i]['name'] . '</option>';
+                            }
+                            ?>
+                            </select></td>
                             <td align="left" style="color:red"><?php echo "$CommentError"; ?></td>
                         </tr>
                         <tr>

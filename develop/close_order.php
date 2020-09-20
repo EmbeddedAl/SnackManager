@@ -1,5 +1,10 @@
 <?php 
+
+session_start();
+
+
 include_once "sharedphp/dbActions.php";
+include_once "sharedphp/sharedHelpers.php";
 
 function doCloseOrder($order_id)
 {
@@ -11,7 +16,7 @@ function doCloseOrder($order_id)
         }
         
         $newdb = new snackDb();
-        $newdb->dbCloseOrder($_SESSION["userid"], $order_id);
+        $newdb->closeOrder($_SESSION["userid"], $order_id);
             
         return TRUE;
     }
@@ -94,7 +99,7 @@ function doShowOrder($order_id)
 
 $PageTitle = "Close Event";
 
-session_start();
+
 
 
 // require user to be logged in

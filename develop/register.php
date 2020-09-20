@@ -1,4 +1,5 @@
 <?php 
+    session_start();
 
     global $MaxCharUsername;
     global $MaxCharFirstname;
@@ -19,8 +20,6 @@
     include 'sharedphp/dbActions.php';
     
     $PageTitle = "Create User";
-    
-    session_start();
     
     /* require user to be logged in */
     if (!isset($_SESSION["userid"]))
@@ -44,6 +43,7 @@
 	$FormCityValid = "";
 	$FormPasswordValid = "";
 	$MessageString = '';
+	$FormAdminValid='';
 	
 	if (isset($_POST["commit"]))
 	{
@@ -103,11 +103,18 @@
             $FormPassword = $_POST["password"];
             $FormPasswordValid = sharedInputCheck_checkPasswordValidity($FormPassword);
             $allOk &= (strlen($FormPasswordValid) == 0);
+
+            $FormIsAdmin = $_POST["admin"];
+            if (strlen($FormIsAdmin) == 0)
+                $FormIsAdmin = "0"; 
+            $FormAdminValid = "";
+            $allOk &= (strlen($FormAdminValid) == 0);
+            
             
             /* do database access if all input data is correct */
             if ($allOk)
             {
-                $newdb->createUser($FormUserName, $FormFirstName, $FormLastName, $FormEmail, $FormCity, md5($FormPassword));
+                $newdb->createUser($FormUserName, md5($FormPassword), $FormLastName, $FormFirstName, $FormEmail, $FormCity, intval($FormIsAdmin));
                 $MessageString = 'User ' . $FormUserName . ' created successfully';
 
                 // clear the post
@@ -130,6 +137,7 @@
 	   $FormEmail = $DefaultEmail;
 	   $FormCity = $DefaultCity;
 	   $FormPassword = $DefaultPassword;
+	   $FormIsAdmin='';
    }
 ?>
 
@@ -184,6 +192,11 @@
                           <td align="left">Password:</td>
                           <td align="left"><input type="password" name="password" value="<?php echo $FormPassword; ?>"></td>
                           <td align="left" style="color:red"><?php echo $FormPasswordValid; ?></td>
+                        </tr>
+                        <tr>
+                          <td align="left">Is Administrator:</td>
+                          <td align="left"><input type="checkbox" name="admin" value="1" /></td>
+                          <td align="left" style="color:red"><?php echo $FormAdminValid; ?></td>
                         </tr>
                         <tr>
                           <td align="left"></td>

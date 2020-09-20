@@ -1,11 +1,11 @@
 <?php
-    //include 'config.php';
+    session_start();
+
     include "sharedphp/sharedHelpers.php";
     include "sharedphp/dbActions.php";
     
     $PageTitle = "Create Event";
     
-    session_start(); 
     
     /* require user to be logged in */
     if (!isset($_SESSION["userid"]))

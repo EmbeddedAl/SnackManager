@@ -134,7 +134,7 @@ class dbDatabase
     {
         if ($this->transactionCount == 0)
         {
-            throw new dbException('No active transaction for commit');
+            throw new dbException('No active transaction for abort');
         }
         
         $this->db->rollback();
@@ -199,14 +199,22 @@ class snackDb extends dbDatabase
 
     public function getUsers()
     {
-        $users = $this->query("SELECT username, userid FROM users ORDER BY username");
+        $users = $this->query("SELECT username, userid, lastname, firstname, email, city, isadmin, max_credit FROM users WHERE isactive != 0 ORDER BY username");
         $result = array();
         
          $cnt = 0;
         
         while ($users->nextRecord())
         {
-            $result[$cnt++] = array('name' => $users->record['username'], 'id' => $users->record['userid']);
+            $result[$cnt++] = array('name' => $users->record['username'], 
+                'id' => $users->record['userid'],
+                'lastname' => $users->record['lastname'],
+                'firstname' => $users->record['firstname'],
+                'email' => $users->record['email'],
+                'city' => $users->record['city'],
+                'isadmin' => $users->record['isadmin'],
+                'maxcredit' => $users->record['max_credit']
+            );
         }
 
         return $result;
@@ -215,7 +223,7 @@ class snackDb extends dbDatabase
     
     public function userExists($user_id)
     {
-        if (!$this->query("SELECT * FROM users WHERE userid = '" . $user_id . "'"))
+        if (!$this->query("SELECT * FROM users WHERE userid = '" . $user_id . "' AND isactive != 0"))
         {
             throw new dbException('Query of user failed: ' . $this->db->error);
         }
@@ -235,7 +243,7 @@ class snackDb extends dbDatabase
     
     public function getUserForUserName($userName)
     {
-        $users = $this->query("SELECT userid FROM users WHERE username = '" . $userName . "'");
+        $users = $this->query("SELECT userid FROM users WHERE username = '" . $userName . "' AND isactive != 0");
         
         if (!$users)
         {
@@ -252,7 +260,7 @@ class snackDb extends dbDatabase
     
     public function getUserNameForUser($userId)
     {
-        $users = $this->query("SELECT username FROM users WHERE userid = '" . $userId . "'");
+        $users = $this->query("SELECT username FROM users WHERE userid = '" . $userId . "' AND isactive != 0");
         
         if (!$users)
         {
@@ -303,16 +311,17 @@ class snackDb extends dbDatabase
     {
         try
         {
+            echo "City: " .$city . "<br/>";
             $this->beginTransaction();
             
             $accountId = $this->createAccount();
             
-            if (!$this->db->query( "INSERT INTO users (lastname, firstname, username, email, city, password, isadmin, account_id, max_credit) " .
-                "VALUES ('$lastname', '$firstname', '$userName', '$mail', '$city', '$password', $isAdmin, $accountId, $max_credit)"))
+            if (!$this->db->query( "INSERT INTO users (lastname, firstname, username, email, city, password, isadmin, account_id, max_credit, isactive) " .
+                "VALUES ('$lastname', '$firstname', '$userName', '$mail', '$city', '$password', $isAdmin, $accountId, $max_credit, 1)"))
             {
-                $this->abortTransaction();
                 throw new dbException('Creating of user failed: ' . $this->db->error);
             }
+            
             $userId = $this->db->insert_id;
             
             $this->commitTransaction();
@@ -327,6 +336,58 @@ class snackDb extends dbDatabase
     }
     
     
+    public function addItem($name, $price)
+    {
+        if (!$this->db->query( "INSERT INTO items (name, price, isactive) VALUES ('$name', '$price', 1)"))
+        {
+            throw new dbException('Creating of item failed: ' . $this->db->error);
+        }
+        
+        return $this->db->insert_id;
+    }
+    
+    public function updateItem($id, $name, $price)
+    {
+        if (!$this->db->query( "UPDATE items SET name = '$name', price = '$price' WHERE id = '$id'"))
+        {
+            throw new dbException('Updating item failed: ' . $this->db->error);
+        }
+    }
+    
+    public function deleteItem($id, $name, $price)
+    {
+        if (!$this->db->query( "UPDATE items SET isactive = 0 WHERE id = '$id'"))
+        {
+            throw new dbException('Deleting item failed: ' . $this->db->error);
+        }
+    }
+    
+    
+    public function getItems()
+    {
+        $items = $this->query("SELECT id, name, price FROM items WHERE isactive != 0 ORDER BY name");
+        $result = array();
+        
+        $cnt = 0;
+        
+        while ($items->nextRecord())
+        {
+            $result[$cnt++] = array('id' => $items->record['id'], 'name' => $items->record['name'], 'price' => $items->record['price']);
+        }
+        
+        return $result;
+    }
+    
+    public function getItemByName($name)
+    {
+        $items = $this->query("SELECT id FROM items WHERE name='" . $name . "' AND isactive > 0");
+        if ($items->nextRecord())
+        {
+            return $items->record['id'];
+        }
+        
+        return intval("");
+    }
     
     
     public function getAccountName($accountId)
@@ -424,6 +485,7 @@ class snackDb extends dbDatabase
         }
         catch (dbException $e)
         {
+            echo "<h2>" . $e->getMessage() . "</h2>";
             $this->abortTransaction();
             
             throw $e;
@@ -442,11 +504,32 @@ class snackDb extends dbDatabase
                 throw new dbException("Event already exists");
         }
 
-        if (!$this->db->query("INSERT INTO orders (event_time, closing_time, is_closed) VALUES ('" . $timevar->format('Y-m-d H:i:s') . "', '" . $closeTime->format('Y-m-d H:i:s') . "', 0)"))
+        if (!$this->db->query("INSERT INTO orders (event_time, closing_time, is_closed, isactive) VALUES ('" . $timevar->format('Y-m-d H:i:s') . "', '" . $closeTime->format('Y-m-d H:i:s') . "', 0, 1)"))
         {
-            throw new dbException("Problem creating order: " . $this->db->error);
+            throw new dbException("Problem creating event: " . $this->db->error);
         }
+        return $this->db->insert_id;
     }
+    
+    function deleteEvent($event_id)
+    {
+        $order = $this->query("SELECT is_closed FROM orders WHERE id = '" . $event_id . "'");
+        if (!$order->nextRecord())
+            throw new dbException("Event entry not found");
+        if ($order->record['isclosed'] != 0)
+        {
+            // it's booked, just hide it
+            $this->db->query("UPDATE orders set isactive=0 WHERE id = '" . $event_id . "'");
+            return;
+        }
+        
+        // it's open, kick it
+        $this->beginTransaction();
+        $this->db->query("DELETE FROM order_entries WHERE order_id = '" . $event_id . "'");
+        $this->db->query("DELETE FROM ordes WHERE id = '" . $event_id . "'");
+        $this->commitTransaction();
+    }
+    
     
     public function getOpenOrderData($userId)
     {
@@ -464,7 +547,7 @@ class snackDb extends dbDatabase
             throw new dbException("No open events found.");
         }
         
-        $items = $this->query("SELECT id, name, price FROM items ORDER BY name");            
+        $items = $this->query("SELECT id, name, price FROM items WHERE isactive != 0 ORDER BY name");            
         $cnt = 0;
         $item_xlat = array();
         
@@ -544,7 +627,7 @@ class snackDb extends dbDatabase
     {
         $result = array();
         
-        $orders = $this->query("SELECT id, event_time, is_closed FROM orders WHERE CAST(event_time AS DATE) >= CURRENT_DATE()");
+        $orders = $this->query("SELECT id, event_time, is_closed FROM orders WHERE isactive != 0 ORDER BY event_time DESC");
 
         while ($orders->nextRecord())
         {
@@ -575,11 +658,6 @@ class snackDb extends dbDatabase
             $result["is_closed"] = $orders->record["is_closed"];
             $result["items"][$cnt] = array("name" => $orders->record["name"], "amount" => $orders->record["qty"]);
             $cnt += 1;
-        }
-        
-        if ($cnt == 0)
-        {
-            throw new dbException("Problems retrieving order summary");
         }
         
         return $result;
@@ -613,20 +691,13 @@ class snackDb extends dbDatabase
         }
         $result[$cnt++] = $user;
         
-        if ($currUser == "")
-        {
-            throw new dbException("Problems retrieving order details");
-        }
-           
         return $result;
     }
 
 
     public function closeOrder($executor_id, $order_id)
     {
-        global $sales_id;
-        
-        $orders = $this->query("SELECT orders.* FROM orders WHERE orders.id = $order_id");
+         $orders = $this->query("SELECT orders.* FROM orders WHERE orders.id = $order_id");
         
         if (!$orders->nextRecord())
         {
@@ -638,18 +709,14 @@ class snackDb extends dbDatabase
             throw new dbException("Order already closed", dbException::ERR_ORDER_CLOSED);
         }
                 
-        $orders = $this->query("SELECT order_entries.user_id, sum(order_entries.Amount * items.price) as amount FROM `order_entries` join items on order_entries.item_id = items.id WHERE order_entries.order_id = $order_id group by order_entries.user_id");
-
-        if ($this->affectedRows() == 0)
-        {
-            throw new dbException("Problems retrieving order entries for $order_id");
-        }
-                
+       
         $comment = "Close Order $order_id";
         
         try 
         {
             $this->beginTransaction();
+            
+            $orders = $this->query("SELECT order_entries.user_id, sum(order_entries.Amount * items.price) as amount FROM `order_entries` join items on order_entries.item_id = items.id WHERE order_entries.order_id = $order_id group by order_entries.user_id");
             
             if (!$this->db->query('UPDATE orders SET is_closed=1 WHERE id = ' . $order_id))
                 throw new dbException("Cannot close order");
@@ -658,7 +725,7 @@ class snackDb extends dbDatabase
             {
                 $userAccount = $this->getAccountIdForUser($orders->record["user_id"]);
                 
-                $this->transferMoney($sales_id, $userAccount, $executor_id, $orders->record["amount"], $comment, 1);
+                $this->transferMoney($this->sales_accountId, $userAccount, $executor_id, $orders->record["amount"], $comment, 1);
             }
             
             $this->commitTransaction();

@@ -1,10 +1,10 @@
 <?php 
+    session_start();
+
     include 'sharedphp/sharedInputCheck.php';
     include_once "sharedphp/dbActions.php";
     
     $PageTitle = "Accept Cash from User";
-    
-    session_start();
     
     // require user to be logged in
     if (!isset($_SESSION["userid"]))

@@ -18,18 +18,23 @@
         echo '</table>';
 
         echo '<ul>';
+        echo '    <li><a href="change_order.php">Edit Order</a></li>';
+        echo '    <li><a href="transfer_cash.php">Transfer Cash</a></li>';
         echo '    <li><a href="myaccount.php">My Account</a></li>';
-        echo '    <li><a href="change_order.php">Change Order</a></li>';
 
         if (isset($_SESSION['isadmin']))
         {
-            echo '<br/>[Administrative area]<br/>';
-            echo '    <li><a href="register.php">Register New User</a></li>';
+            echo '<br/>[Cash Management]<br/>';
             echo '    <li><a href="accept_cash.php">Accept Cash From User</a></li>';
             echo '    <li><a href="provide_cash.php">Provide Cash To User</a></li>';
+            echo '    <li><a href="provide_cash_for_purchase.php">Pay for a Purchase</a></li>';
+            echo '<br/>[Administrative area]<br/>';
+            echo '    <li><a href="create_order.php">Event Management</a></li>';
+            echo '    <li><a href="register.php">Register New User</a></li>';
+            echo '    <li><a href="items.php">Item Management</a></li>';
             echo '    <li><a href="create_order.php">Create Event</a></li>';
             echo '    <li><a href="close_order.php">Close Event</a></li>';
-            echo '    <li><a href="provide_cash_for_purchase.php">Pay for a Purchase</a></li>';
+            echo '    <li><a href="register.php">User Management</a></li>';
         }
         echo '<br/>';
         echo '    <li><a href="logout.php">Logout</a></li>';
